@@ -25,6 +25,8 @@ model User {
   challengesIn  Challenge[]        @relation("Opponent")
   participations MatchParticipant[]
   matchesWon    Match[]            @relation("Winner")
+  friendsOut    Friendship[]       @relation("FriendRequester")
+  friendsIn     Friendship[]       @relation("FriendAddressee")
 }
 
 model Session {
@@ -161,4 +163,19 @@ model MatchParticipant {
 
   @@id([matchId, userId])
   @@index([userId])
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  requesterId String
+  requester   User     @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addresseeId String
+  addressee   User     @relation("FriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  /// pending | accepted
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  acceptedAt  DateTime?
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
 }

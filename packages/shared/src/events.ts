@@ -13,6 +13,7 @@ export const typingWordSchema = z.object({
   /** Client estimate, in server time, of when the word was finished. */
   typedAt: z.number().finite(),
 });
+export const queueJoinSchema = z.object({ mode: z.enum(['typing']) });
 export const timePingSchema = z.object({ t0: z.number().finite() });
 
 export type RoomJoin = z.infer<typeof roomJoinSchema>;
@@ -62,6 +63,10 @@ export interface ServerToClientEvents {
   'match:word': (data: WordResultEvent) => void;
   'match:end': (summary: MatchSummaryDto) => void;
   'error:message': (data: { message: string }) => void;
+  'presence:update': (data: { userId: string; online: boolean }) => void;
+  'friends:changed': () => void;
+  'queue:status': (data: { searching: boolean; since: number | null }) => void;
+  'queue:matched': (data: { matchId: string; opponent: PublicUser }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -70,4 +75,6 @@ export interface ClientToServerEvents {
   'room:leave': (data: RoomJoin) => void;
   'room:ready': (data: RoomJoin) => void;
   'typing:word': (data: TypingWord) => void;
+  'queue:join': (data: { mode: 'typing' }) => void;
+  'queue:leave': () => void;
 }

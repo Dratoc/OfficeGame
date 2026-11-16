@@ -6,6 +6,7 @@ import { requireUser } from '../lib/auth';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { sendMail } from '../lib/mail';
 import { toUser } from '../realtime/notify';
+import { createMatch } from '../lib/matches';
 
 const CHALLENGE_TTL_MS = 24 * 3600_000;
 
@@ -61,14 +62,9 @@ export async function challengeRoutes(app: FastifyInstance) {
       // Guards against a double click or two tabs accepting at once.
       const claimed = await tx.challenge.updateMany({ where: { id, status: 'pending' }, data: { status: 'accepted' } });
       if (claimed.count === 0) throw conflict('Este desafío ya no está disponible');
-      const match = await tx.match.create({
-        data: {
-          mode: challenge.mode,
-          participants: { create: [{ userId: challenge.challengerId }, { userId: challenge.opponentId }] },
-        },
-      });
-      await tx.challenge.update({ where: { id }, data: { matchId: match.id } });
-      return match.id;
+      const matchId = await createMatch(challenge.mode as 'typing', [challenge.challengerId, challenge.opponentId], tx);
+      await tx.challenge.update({ where: { id }, data: { matchId } });
+      return matchId;
     });
 
     await sendMail({

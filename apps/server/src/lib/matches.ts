@@ -10,10 +10,17 @@ import {
   type MatchResult,
   type MatchSummaryDto,
 } from '@inbox/shared';
+import type { Prisma } from '@prisma/client';
 import { prisma } from './db';
 import { publicUserSelect, toPublicUser } from './users';
 import { pushMail, sendMail } from './mail';
 import type { PlayerOutcome } from '../modes/types';
+
+/** Creates a match in the waiting state. Works inside or outside a transaction. */
+export async function createMatch(mode: GameModeId, userIds: string[], tx: Prisma.TransactionClient = prisma): Promise<string> {
+  const match = await tx.match.create({ data: { mode, participants: { create: userIds.map((userId) => ({ userId })) } } });
+  return match.id;
+}
 
 export async function getMatchSummary(matchId: string): Promise<MatchSummaryDto | null> {
   const m = await prisma.match.findUnique({

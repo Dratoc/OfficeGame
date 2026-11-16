@@ -6,6 +6,8 @@ import { requireUser } from '../lib/auth';
 import { badRequest, notFound } from '../lib/errors';
 import { getPublicUser, getStatsDto, hasPlayed, publicUserSelect, toPublicUser } from '../lib/users';
 import { winRate } from '@inbox/shared';
+import { friendStatus } from '../lib/friends';
+import { isOnline } from '../realtime/presence';
 
 async function history(userId: string, take = 20): Promise<HistoryEntryDto[]> {
   const rows = await prisma.matchParticipant.findMany({
@@ -51,11 +53,14 @@ export async function userRoutes(app: FastifyInstance) {
   });
 
   app.get('/api/users/:username', async (req) => {
-    await requireUser(req);
+    const viewerId = await requireUser(req);
     const { username } = z.object({ username: z.string().max(40) }).parse(req.params);
     const row = await prisma.user.findFirst({ where: { username: { equals: username, mode: 'insensitive' } }, select: { ...publicUserSelect, _count: { select: { inventory: true } } } });
     if (!row) throw notFound('Ese jugador no existe');
-    const profile: ProfileDto = { user: toPublicUser(row), stats: await getStatsDto(row.id), history: await history(row.id), inventoryCount: row._count.inventory };
+    const profile: ProfileDto = {
+      friendStatus: await friendStatus(viewerId, row.id),
+      online: isOnline(row.id),
+      user: toPublicUser(row), stats: await getStatsDto(row.id), history: await history(row.id), inventoryCount: row._count.inventory };
     return profile;
   });
 

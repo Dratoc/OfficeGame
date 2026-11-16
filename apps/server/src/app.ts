@@ -11,6 +11,7 @@ import { userRoutes } from './routes/users';
 import { mailRoutes } from './routes/mail';
 import { challengeRoutes } from './routes/challenges';
 import { matchRoutes } from './routes/matches';
+import { friendRoutes } from './routes/friends';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = resolve(here, '../../web/dist');
@@ -34,6 +35,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
   await app.register(mailRoutes);
   await app.register(challengeRoutes);
   await app.register(matchRoutes);
+  await app.register(friendRoutes);
   app.get('/api/health', async () => ({ ok: true }));
 
   // In production the server also serves the built web app.

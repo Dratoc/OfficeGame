@@ -10,7 +10,8 @@ export type View =
   | { kind: 'armory' }
   | { kind: 'ranking' }
   | { kind: 'profile'; username: string }
-  | { kind: 'calendar' };
+  | { kind: 'calendar' }
+  | { kind: 'contacts' };
 
 export interface Toast {
   id: number;
@@ -30,6 +31,12 @@ interface State {
   composeOpen: boolean;
   composeTo: string;
   toasts: Toast[];
+  /** Quick match search state, driven by the server. */
+  queue: { searching: boolean; since: number | null };
+  friendRequests: number;
+  /** Bumped whenever friends or presence change, so views can refetch. */
+  socialVersion: number;
+  refreshSocial: () => Promise<void>;
   setMe: (me: MeDto | null) => void;
   refreshMe: () => Promise<void>;
   go: (view: View) => void;
@@ -55,6 +62,13 @@ export const useApp = create<State>((set, get) => ({
   composeOpen: false,
   composeTo: '',
   toasts: [],
+  queue: { searching: false, since: null },
+  friendRequests: 0,
+  socialVersion: 0,
+  refreshSocial: async () => {
+    const res = await api<{ incoming: unknown[] }>('/api/friends').catch(() => null);
+    set({ friendRequests: res?.incoming.length ?? 0, socialVersion: get().socialVersion + 1 });
+  },
 
   setMe: (me) => set({ me, authChecked: true }),
   refreshMe: async () => {

@@ -103,7 +103,30 @@ export interface HistoryEntryDto {
   ratingDelta: number;
 }
 
+export interface FriendDto {
+  user: PublicUser;
+  online: boolean;
+  since: string;
+}
+
+export interface FriendRequestDto {
+  id: string;
+  user: PublicUser;
+  createdAt: string;
+}
+
+export interface FriendsDto {
+  friends: FriendDto[];
+  incoming: FriendRequestDto[];
+  outgoing: FriendRequestDto[];
+}
+
+/** Relationship between the viewer and a profile. */
+export type FriendStatus = 'self' | 'none' | 'friends' | 'incoming' | 'outgoing';
+
 export interface ProfileDto {
+  friendStatus: FriendStatus;
+  online: boolean;
   user: PublicUser;
   stats: PlayerStatsDto;
   history: HistoryEntryDto[];
