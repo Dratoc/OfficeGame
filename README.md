@@ -11,6 +11,8 @@ Un juego multijugador casual escondido dentro de una bandeja de correo de oficin
 - Avatar por capas en SVG con 42 objetos en 11 categorías y 5 rarezas (común a mítico), animaciones de espera, saludo, carrera, victoria y derrota, y mascotas (gato y dragones).
 - Armería (editor de avatar) con objetos bloqueados por nivel. El servidor rechaza objetos que el jugador no tiene.
 - Typing Battle 1 contra 1 de 10 segundos, **autoritativo en el servidor**: mismo texto para ambos, revelado al empezar; reloj sincronizado; cada palabra validada en el servidor; anti-trampas (pegar bloqueado, límite de velocidad humana, mensajes fuera de tiempo descartados); 5 s para reconectar antes de perder por abandono.
+- Cuatro modos 1 contra 1 con la misma garantía: **Typing Battle** (10 s), **Cálculo Express** (20 s, sumas, restas y multiplicaciones), **Atajos de Teclado** (15 s, combinaciones como Ctrl+Shift+S y símbolos) y **Tarea Express** (20 s, tareas de oficina ficticias paso a paso, como configurar una videollamada). Las respuestas correctas nunca salen del servidor.
+- Duelo animado en vivo: cada acierto lanza un proyectil al rival (fuego, estrella o avión de papel según tu avatar), cada error te hace tropezar, con barra de quién va ganando y combos.
 - Escena final animada (ganador celebra, perdedor bajo la nube), XP, niveles, rating Elo, objetos desbloqueados y correo de resultado.
 - Ranking global, perfil con estadísticas e historial, y un calendario de vista previa.
 
@@ -55,24 +57,25 @@ packages/shared   Reglas y tipos compartidos: puntuación, Elo, niveles, catálo
 apps/server       Fastify + Socket.IO + Prisma/PostgreSQL
   src/routes        API HTTP (auth, usuarios, avatar, correo, desafíos, partidas, ranking)
   src/realtime      Motor de partidas autoritativo y gateway de sockets
-  src/modes         Modos de juego (hoy: typing). Cada modo implementa GameMode
+  src/modes         Modos de juego. Los modos de secuencia (typing, math, keys, task) usan createSequenceMode
   prisma            Esquema y migraciones
 apps/web          React + Vite + Framer Motion
   src/avatar        Renderizador de avatar por capas y sus animaciones
+  src/battle        Duelo animado y paneles de cada modo
   src/views         Bandeja, sala de batalla, escena final, armería, ranking, perfil
 ```
 
 ## Cómo agregar un modo de juego
 
-1. Agrega el modo en `packages/shared/src/modes.ts` con `available: true`.
+1. Agrega el modo en `packages/shared/src/modes.ts` con `available: true` y, si es de preguntas en secuencia, su generador en `prompts.ts`.
 2. Implementa `GameMode` en `apps/server/src/modes/` (crear estado, aplicar acción, resultado, comparar) y regístralo en `registry.ts`.
-3. Crea su vista de batalla en `apps/web`. La sala, el reloj, la persistencia, el ranking y los correos ya funcionan para cualquier modo.
+3. Crea su panel en `apps/web/src/battle/panels.tsx`. La sala, el reloj, la persistencia, el ranking y los correos ya funcionan para cualquier modo.
 
 ## Límites conocidos del MVP
 
 - Un solo proceso de servidor mantiene las partidas en vivo. Para varios servidores hay que fijar cada partida a un proceso (sticky sessions o adaptador Redis de Socket.IO).
 - Si el servidor se reinicia en medio de una partida, esa partida se anula.
-- Amigos, Racing, Puzzle, Office Battle, calendario de torneos y tienda cosmética quedan preparados en el modelo, pero no implementados.
+- Racing, Puzzle, Office Battle, calendario de torneos y tienda cosmética quedan preparados en el modelo, pero no implementados.
 
 ## Publicar en Render
 

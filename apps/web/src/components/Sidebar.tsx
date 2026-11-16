@@ -1,6 +1,7 @@
 import { CalendarDays, Inbox, PenSquare, Send, Shield, Swords, Trophy, UserRound, Users, Zap } from 'lucide-react';
 import { startQuickMatch } from './QuickMatch';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { GAME_MODES, PLAYABLE_MODES } from '@inbox/shared';
 import { useApp, type Folder, type View } from '../lib/store';
 
 function Item({ icon, label, active, count, onClick, badge }: { icon: ReactNode; label: string; active: boolean; count?: number; onClick: () => void; badge?: string }) {
@@ -19,15 +20,51 @@ export function Sidebar() {
   const folder = view.kind === 'mail' ? view.folder : null;
   const toFolder = (f: Folder) => go({ kind: 'mail', folder: f, mailId: null });
   const is = (k: View['kind']) => view.kind === k;
+  const [picking, setPicking] = useState(false);
+  const pickRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!picking) return;
+    const close = (e: MouseEvent) => !pickRef.current?.contains(e.target as Node) && setPicking(false);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setPicking(false);
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [picking]);
 
   return (
     <nav className="sidebar">
       <button className="btn btn-primary compose-btn" onClick={() => openCompose()}>
         <PenSquare size={18} /> Nuevo desafío
       </button>
-      <button className="btn btn-ghost quick-btn" disabled={queue.searching} onClick={startQuickMatch}>
-        <Zap size={16} /> {queue.searching ? 'Buscando…' : 'Partida rápida'}
-      </button>
+      <div className="quick-wrap" ref={pickRef}>
+        <button className="btn btn-ghost quick-btn" disabled={queue.searching} onClick={() => setPicking((x) => !x)} aria-expanded={picking}>
+          <Zap size={16} /> {queue.searching ? 'Buscando…' : 'Partida rápida'}
+        </button>
+        {picking && !queue.searching && (
+          <div className="quick-menu" role="menu">
+            <span className="quick-menu-title">Elige el modo</span>
+            {PLAYABLE_MODES.map((id) => (
+              <button
+                key={id}
+                role="menuitem"
+                className="quick-mode"
+                onClick={() => {
+                  setPicking(false);
+                  startQuickMatch(id);
+                }}
+              >
+                <strong>{GAME_MODES[id].name}</strong>
+                <small>
+                  {Math.round(GAME_MODES[id].durationMs / 1000)} s · {GAME_MODES[id].tagline}
+                </small>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="nav-group">
         <div className="nav-title">Correo</div>
@@ -48,7 +85,7 @@ export function Sidebar() {
       <div className="sidebar-foot">
         <div className="tip">
           <strong>Consejo del gremio</strong>
-          <p>Las batallas duran 10 segundos. Perfecto entre reunión y reunión.</p>
+          <p>Cada batalla dura entre 10 y 20 segundos. Perfecto entre reunión y reunión.</p>
         </div>
       </div>
     </nav>

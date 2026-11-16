@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Crown, RotateCcw, Sparkles } from 'lucide-react';
-import { ITEMS_BY_ID, type MatchSummaryDto, type ParticipantResultDto } from '@inbox/shared';
+import { GAME_MODES, ITEMS_BY_ID, type MatchSummaryDto, type ParticipantResultDto } from '@inbox/shared';
 import { Avatar } from '../avatar/Avatar';
 import { RarityBadge } from '../components/Bits';
 import { useApp } from '../lib/store';
@@ -13,6 +13,8 @@ const RESULT_TEXT: Record<ParticipantResultDto['result'], string> = {
   draw: 'Empate',
   abandon: 'Abandono',
 };
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const COLORS = ['#c8962e', '#14757d', '#b4373a', '#7a5cff', '#f2c94c', '#3f7cc4'];
 
@@ -124,9 +126,9 @@ export function ResultScene({ summary }: { summary: MatchSummaryDto }) {
           <tbody>
             {(
               [
-                ['Palabras correctas', 'correctWords'],
+                [summary.mode === 'typing' ? 'Palabras correctas' : `${cap(GAME_MODES[summary.mode].unit)} correctos`, 'correctWords'],
                 ['Errores', 'errors'],
-                ['Velocidad (PPM)', 'wpm'],
+                [summary.mode === 'typing' ? 'Velocidad (PPM)' : 'Ritmo (aciertos/min)', 'wpm'],
                 ['Precisión', 'accuracy'],
               ] as const
             ).map(([label, key]) => (

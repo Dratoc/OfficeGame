@@ -59,7 +59,8 @@ Desde hoy formas parte de nuestro equipo de alto rendimiento (y de alto riesgo d
 Cómo funciona:
 • Los desafíos llegan como correos a tu bandeja de entrada.
 • Para retar a un colega, pulsa "Nuevo desafío" y escribe su nombre de usuario.
-• Cada Typing Battle dura 10 segundos. Gana quien escriba más palabras correctas.
+• Hay cuatro modos: Typing Battle, Cálculo Express, Atajos de Teclado y Tarea Express. Duran entre 10 y 20 segundos.
+• ¿Sin rival a mano? Pulsa "Partida rápida" y el sistema te encuentra uno.
 • Ganar te da experiencia, sube tu nivel y desbloquea objetos para tu avatar en la Armería.
 
 Recuerda: ninguna compra da ventajas. Aquí solo cuenta la velocidad de tus dedos.

@@ -1,6 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
-import { queueJoinSchema, roomJoinSchema, timePingSchema, typingWordSchema } from '@inbox/shared';
+import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema } from '@inbox/shared';
 import { SESSION_COOKIE, readCookie, userIdFromToken } from '../lib/auth';
 import { setIO, toUser, userRoom, type IO } from './notify';
 import { engine } from './matchEngine';
@@ -73,11 +73,11 @@ export function attachSocket(server: HttpServer): IO {
       void engine.ready(parsed.data.matchId, userId);
     });
 
-    socket.on('typing:word', (data) => {
+    socket.on('match:answer', (data) => {
       if (!allow()) return;
-      const parsed = typingWordSchema.safeParse(data);
+      const parsed = answerSchema.safeParse(data);
       if (!parsed.success || !joined.has(parsed.data.matchId)) return;
-      engine.word(userId, parsed.data);
+      engine.answer(userId, parsed.data);
     });
 
     socket.on('queue:join', (data) => {

@@ -6,14 +6,14 @@ import {
   type GameModeId,
   type PublicUser,
   type RoomStateEvent,
-  type TypingWord,
+  type Answer,
 } from '@inbox/shared';
 import { prisma } from '../lib/db';
 import { publicUserSelect, toPublicUser } from '../lib/users';
 import { finalizeMatch, getMatchSummary } from '../lib/matches';
 import { MODE_REGISTRY } from '../modes/registry';
 import type { GameMode } from '../modes/types';
-import type { TypingActionResult } from '../modes/typing';
+import type { SequenceActionResult } from '../modes/sequence';
 import { getIO, matchRoom } from './notify';
 
 type Phase = RoomStateEvent['phase'];
@@ -93,6 +93,7 @@ export class MatchEngine {
   snapshot(room: Room): RoomStateEvent {
     return {
       matchId: room.matchId,
+      mode: room.modeId,
       phase: room.phase,
       startAt: room.startAt,
       endAt: room.endAt,
@@ -137,7 +138,7 @@ export class MatchEngine {
       room.dropTimers.delete(userId);
     }
     if (room.phase === 'playing' && room.state) {
-      socket.emit('match:go', { matchId, ...room.mode.startPayload(room.state), startAt: room.startAt!, endAt: room.endAt! });
+      socket.emit('match:go', { matchId, mode: room.modeId, prompts: room.mode.startPayload(room.state).prompts, startAt: room.startAt!, endAt: room.endAt! });
     }
     this.broadcast(room);
     return null;
@@ -188,7 +189,7 @@ export class MatchEngine {
     room.endAt = room.startAt + room.mode.durationMs;
     await prisma.match.update({
       where: { id: room.matchId },
-      data: { status: 'playing', seed, words: room.mode.startPayload(room.state).words, startedAt: new Date(room.startAt) },
+      data: { status: 'playing', seed, words: room.mode.startPayload(room.state).answers, startedAt: new Date(room.startAt) },
     });
     this.broadcast(room);
     room.timers.push(
@@ -197,7 +198,8 @@ export class MatchEngine {
         // The words are only revealed when the match starts, to both players at once.
         getIO()?.to(matchRoom(room.matchId)).emit('match:go', {
           matchId: room.matchId,
-          ...room.mode.startPayload(room.state),
+          mode: room.modeId,
+          prompts: room.mode.startPayload(room.state).prompts,
           startAt: room.startAt!,
           endAt: room.endAt!,
         });
@@ -207,12 +209,12 @@ export class MatchEngine {
     );
   }
 
-  word(userId: string, data: TypingWord): TypingActionResult | null {
+  answer(userId: string, data: Answer): SequenceActionResult | null {
     const room = this.rooms.get(data.matchId);
-    if (!room || room.modeId !== 'typing' || !room.state || !room.players.has(userId)) return null;
+    if (!room || !room.state || !room.players.has(userId)) return null;
     if (room.phase !== 'playing' && room.phase !== 'countdown') return null;
     if (room.abandoned.has(userId)) return null;
-    const res = room.mode.applyAction(room.state, userId, data, { now: this.now(), startAt: room.startAt!, endAt: room.endAt! }) as TypingActionResult;
+    const res = room.mode.applyAction(room.state, userId, data, { now: this.now(), startAt: room.startAt!, endAt: room.endAt! }) as SequenceActionResult;
     if (res.stats) {
       getIO()
         ?.to(matchRoom(room.matchId))

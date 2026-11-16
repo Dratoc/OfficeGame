@@ -5,4 +5,5 @@ export * from './events';
 export * from './avatar';
 export * from './progression';
 export * from './modes';
+export * from './prompts';
 export * from './api';

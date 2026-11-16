@@ -1,3 +1,4 @@
+import type { PlayableModeId } from '@inbox/shared';
 import { create } from 'zustand';
 import type { MailDto, MeDto } from '@inbox/shared';
 import { api } from './api';
@@ -32,7 +33,7 @@ interface State {
   composeTo: string;
   toasts: Toast[];
   /** Quick match search state, driven by the server. */
-  queue: { searching: boolean; since: number | null };
+  queue: { searching: boolean; since: number | null; mode?: PlayableModeId };
   friendRequests: number;
   /** Bumped whenever friends or presence change, so views can refetch. */
   socialVersion: number;
