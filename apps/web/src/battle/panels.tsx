@@ -18,6 +18,7 @@ export function ModePanel({ mode, ...props }: PanelProps & { mode: GameModeId })
   if (mode === 'math') return <MathPanel {...props} />;
   if (mode === 'keys') return <KeysPanel {...props} />;
   if (mode === 'task') return <TaskPanel {...props} />;
+  if (mode === 'puzzle') return <PuzzlePanel {...props} />;
   return <TypingPanel {...props} />;
 }
 
@@ -341,6 +342,99 @@ function TaskPanel({ prompts, index, marks, playing, onSubmit }: PanelProps) {
         </AnimatePresence>
         <div className="task-foot muted small">Usa el mouse o las teclas 1, 2 y 3.</div>
       </div>
+    </div>
+  );
+}
+
+/* ---------------- Puzzle ---------------- */
+
+function PuzzlePanel({ prompts, index, marks, playing, onSubmit }: PanelProps) {
+  const [buffer, setBuffer] = useState('');
+  const list = prompts ?? [];
+  const current = list[index];
+  const input = useRef<HTMLInputElement>(null);
+  const state = useRef({ current, onSubmit });
+  state.current = { current, onSubmit };
+
+  useEffect(() => {
+    setBuffer('');
+    if (playing && current?.input !== 'choice') input.current?.focus();
+  }, [index, playing, current?.input]);
+
+  // Choices can be picked with the number keys.
+  useEffect(() => {
+    if (!playing) return;
+    const down = (e: KeyboardEvent) => {
+      const p = state.current.current;
+      if (p?.input !== 'choice') return;
+      const choice = p.choices?.[Number(e.key) - 1];
+      if (choice) {
+        e.preventDefault();
+        state.current.onSubmit(choice.id);
+      }
+    };
+    window.addEventListener('keydown', down);
+    return () => window.removeEventListener('keydown', down);
+  }, [playing]);
+
+  const send = () => {
+    if (!buffer.trim()) return;
+    onSubmit(buffer);
+    setBuffer('');
+  };
+
+  return (
+    <div className={`panel puzzle-panel ${!playing ? 'dim' : ''}`}>
+      <div className="math-history">
+        {list.slice(Math.max(0, index - 8), index).map((p, i, arr) => {
+          const at = index - arr.length + i;
+          return <span key={at} className={`puzzle-dot ${markClass(marks[at])}`} />;
+        })}
+      </div>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div key={index} className="puzzle-card" initial={{ rotateX: -60, opacity: 0 }} animate={{ rotateX: 0, opacity: 1 }} exit={{ rotateX: 60, opacity: 0 }} transition={{ duration: 0.1 }}>
+          {!current ? (
+            <p className="puzzle-text muted">{playing ? '¡Resolviste todo!' : 'Barajando acertijos…'}</p>
+          ) : (
+            <>
+              <span className="puzzle-label">{current.label}</span>
+              <p className={`puzzle-text ${current.input === 'text' ? 'anagram' : ''}`}>{current.text}</p>
+              {current.input === 'choice' ? (
+                <div className={`puzzle-choices n${current.choices!.length}`}>
+                  {current.choices!.map((c, i) => (
+                    <button key={c.id} className="puzzle-choice" disabled={!playing} onClick={() => onSubmit(c.id)}>
+                      <kbd className="keycap small">{i + 1}</kbd>
+                      <span>{c.label}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <input
+                  ref={input}
+                  className="type-input puzzle-input"
+                  autoFocus
+                  inputMode={current.input === 'number' ? 'numeric' : 'text'}
+                  value={buffer}
+                  disabled={!playing}
+                  placeholder={current.input === 'number' ? '?' : 'Escribe la palabra'}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  onPaste={(e) => e.preventDefault()}
+                  onChange={(e) => setBuffer((current.input === 'number' ? e.target.value.replace(/[^0-9-]/g, '') : e.target.value.replace(/\s/g, '')).slice(0, 20))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                />
+              )}
+            </>
+          )}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }

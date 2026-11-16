@@ -1,5 +1,6 @@
 import {
   GAME_MODES,
+  PUZZLE_GOAL,
   RACE_LENGTH,
   LATE_GRACE_MS,
   MIN_MS_PER_CHAR,
@@ -134,6 +135,7 @@ export function createSequenceMode(id: PlayableModeId, opts: Options): GameMode<
 
 export const typingMode = createSequenceMode('typing', { minGapMs: (w) => w.trim().length * MIN_MS_PER_CHAR, capWpm: true });
 export const racingMode = createSequenceMode('racing', { minGapMs: (w) => w.trim().length * MIN_MS_PER_CHAR, capWpm: true, finishAt: RACE_LENGTH });
+export const puzzleMode = createSequenceMode('puzzle', { minGapMs: () => 400, capWpm: false, finishAt: PUZZLE_GOAL });
 export const mathMode = createSequenceMode('math', { minGapMs: () => 250, capWpm: false });
 export const keysMode = createSequenceMode('keys', { minGapMs: () => 120, capWpm: false });
 export const taskMode = createSequenceMode('task', { minGapMs: () => 250, capWpm: false });

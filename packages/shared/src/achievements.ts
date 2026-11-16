@@ -40,6 +40,7 @@ export const ACHIEVEMENTS = [
   a('flawless', 'Cero errores', 'Gana con 10 aciertos o más y ningún error.', 'target', 'silver', (c) => c.result === 'win' && c.correct >= 10 && c.errors === 0),
   a('accountant', 'Contador real', 'Resuelve 25 cálculos correctos en una partida de Cálculo Express.', 'calc', 'silver', (c) => c.mode === 'math' && c.correct >= 25),
   a('shortcut_master', 'Maestro de atajos', 'Acierta 30 atajos en una partida de Atajos de Teclado.', 'keyboard', 'gold', (c) => c.mode === 'keys' && c.correct >= 30),
+  a('sage', 'Sabio del reino', 'Resuelve 12 acertijos en una partida de Puzzle Battle.', 'star', 'silver', (c) => c.mode === 'puzzle' && c.correct >= 12),
   a('multitask', 'Multitarea', 'Gana al menos una vez en 5 modos distintos.', 'layers', 'gold', (c) => c.modesWon >= 5),
   a('race_winner', 'Primero en la meta', 'Gana una carrera de 3 o más jugadores.', 'flag', 'silver', (c) => c.mode === 'racing' && c.players >= 3 && c.result === 'win'),
   a('level_5', 'Ascenso', 'Llega al nivel 5.', 'trend', 'bronze', (c) => c.level >= 5),

@@ -49,3 +49,34 @@ describe('sequence modes', () => {
     expect(typingMode.applyAction(t, 'a', { index: 0, answer: t.answers[0]!, typedAt: -5 }, ctx(-5)).reason).toBe('not-started');
   });
 });
+
+describe('puzzle mode', () => {
+  it('generates solvable puzzles of every kind', () => {
+    const { prompts, answers } = generatePrompts('puzzle', 99);
+    expect(prompts.length).toBe(60);
+    const labels = new Set(prompts.map((p) => p.label));
+    expect(labels.size).toBe(4);
+    prompts.forEach((p, i) => {
+      const a = answers[i]!;
+      if (p.input === 'choice') expect(p.choices!.map((c) => c.id)).toContain(a);
+      if (p.input === 'number') expect(Number.isFinite(Number(a))).toBe(true);
+      if (p.input === 'text') {
+        expect(p.text.toLowerCase().split('').sort().join('')).toBe(a.split('').sort().join(''));
+        expect(p.text.toLowerCase()).not.toBe(a);
+      }
+    });
+  });
+
+  it('checks series answers and stops at the goal', async () => {
+    const { puzzleMode } = await import('../src/modes/sequence');
+    const { PUZZLE_GOAL } = await import('@inbox/shared');
+    const s = puzzleMode.createState(4, ['a', 'b']);
+    let t = 0;
+    for (let i = 0; i < PUZZLE_GOAL; i++) {
+      t += 900;
+      expect(puzzleMode.applyAction(s, 'a', { index: i, answer: s.answers[i]!, typedAt: t }, { now: t, startAt: 0, endAt: 45_000 }).correct).toBe(true);
+    }
+    expect(puzzleMode.applyAction(s, 'a', { index: PUZZLE_GOAL, answer: s.answers[PUZZLE_GOAL]!, typedAt: t + 900 }, { now: t + 900, startAt: 0, endAt: 45_000 })).toMatchObject({ accepted: false, reason: 'finished' });
+    expect(puzzleMode.isDone!(s, ['a'])).toBe(true);
+  });
+});
