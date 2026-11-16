@@ -2,6 +2,8 @@ import { useId, type ReactNode } from 'react';
 import { HAIR_COLORS, SKIN_TONES, type AvatarConfig } from '@inbox/shared';
 
 export type Pose = 'idle' | 'win' | 'lose' | 'run' | 'wave';
+/** How the pet reacts to what just happened: a hop and fire on a hit, a fright on a miss, a dance on a combo. */
+export type PetEmote = 'happy' | 'sad' | 'cheer';
 
 interface Props {
   config: AvatarConfig;
@@ -11,13 +13,16 @@ interface Props {
   size?: number;
   className?: string;
   title?: string;
+  emote?: PetEmote;
+  /** Changing it replays the pet's reaction (one per answer). */
+  emoteKey?: number | string;
 }
 
 /**
  * Layered SVG avatar. Every equipped item draws one layer; poses are CSS animations
  * on named groups (body, arms, head, pet), so new items only need new shapes.
  */
-export function Avatar({ config, pose = 'idle', crop = 'full', size = 160, className = '', title }: Props) {
+export function Avatar({ config, pose = 'idle', crop = 'full', size = 160, className = '', title, emote, emoteKey }: Props) {
   const uid = useId().replace(/:/g, '');
   const eq = config.equipped;
   const skin = SKIN_TONES[config.skin] ?? SKIN_TONES[0];
@@ -32,7 +37,7 @@ export function Avatar({ config, pose = 'idle', crop = 'full', size = 160, class
       viewBox={viewBox}
       width={size}
       height={size}
-      className={`avatar crop-${crop} pose-${pose} ${className}`}
+      className={`avatar crop-${crop} pose-${pose} ${emote && eq.pet ? `emote-${emote}` : ''} ${className}`}
       role="img"
       aria-label={title ?? 'Avatar'}
     >
@@ -115,7 +120,16 @@ export function Avatar({ config, pose = 'idle', crop = 'full', size = 160, class
         )}
       </g>
 
-      {eq.pet && <g className={`av-pet pet-${eq.pet}`}>{pet(eq.pet, uid)}</g>}
+      {eq.pet && (
+        <g key={emoteKey ?? 'pet'} className={`av-pet pet-${eq.pet}`}>
+          {pet(eq.pet, uid)}
+        </g>
+      )}
+      {eq.pet && emote && crop === 'full' && (
+        <text key={`e-${emoteKey ?? ''}-${emote}`} className={`pet-emote pet-emote-${emote}`} x={eq.pet === 'pet_cat' ? 204 : 186} y={eq.pet === 'pet_cat' ? 166 : 84} textAnchor="middle">
+          {emote === 'happy' ? '♥' : emote === 'sad' ? '!' : '♪'}
+        </text>
+      )}
       {pose === 'lose' && crop === 'full' && (
         <g className="av-cloud">
           <ellipse cx="108" cy="16" rx="22" ry="12" fill="#9aa5b1" />

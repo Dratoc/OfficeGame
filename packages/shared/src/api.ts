@@ -60,6 +60,8 @@ export interface ParticipantResultDto {
   result: MatchResult;
   /** 1 for the winner. Players who tie share a place. */
   placement: number;
+  /** Achievements earned in this match. */
+  achievements: string[];
   correctWords: number;
   errors: number;
   correctChars: number;
@@ -133,4 +135,5 @@ export interface ProfileDto {
   stats: PlayerStatsDto;
   history: HistoryEntryDto[];
   inventoryCount: number;
+  achievements: { id: string; unlockedAt: string }[];
 }

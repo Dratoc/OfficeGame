@@ -30,6 +30,8 @@ export function RaceTrack({ runners, meId, effects, now, finished }: { runners: 
         const done = order.current.indexOf(r.user.id);
         const moving = effects.some((e) => e.userId === r.user.id && e.kind === 'hit' && now - e.at < 650);
         const stumble = effects.some((e) => e.userId === r.user.id && e.kind !== 'hit' && now - e.at < 450);
+        const last = [...effects].reverse().find((e) => e.userId === r.user.id);
+        const emote = done >= 0 ? 'cheer' : moving ? 'happy' : stumble ? 'sad' : undefined;
         const pose = done >= 0 ? (done === 0 ? 'win' : 'wave') : finished ? (r.correctWords === leader ? 'win' : 'idle') : moving ? 'run' : 'idle';
         return (
           <div key={r.user.id} className={`race-lane ${r.user.id === meId ? 'mine' : ''}`}>
@@ -43,7 +45,7 @@ export function RaceTrack({ runners, meId, effects, now, finished }: { runners: 
               <div className="race-fill" style={{ width: `${pct * 100}%` }} />
               <div className="race-flag" aria-hidden="true" />
               <motion.div className={`race-runner ${stumble ? 'stumble' : ''}`} animate={{ left: `${pct * 100}%` }} transition={{ type: 'spring', stiffness: 160, damping: 20 }} style={{ zIndex: 10 - lane }}>
-                <Avatar config={r.user.avatar} pose={pose} size={74} />
+                <Avatar config={r.user.avatar} pose={pose} size={74} emote={emote} emoteKey={last?.id} />
                 <AnimatePresence>
                   {done >= 0 && (
                     <motion.span className={`race-place p${done + 1}`} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 14 }}>

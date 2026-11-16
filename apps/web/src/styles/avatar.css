@@ -101,6 +101,21 @@
 @keyframes pet-jump { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
 @keyframes tail { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-14deg); } }
 
+/* pets react to the battle */
+.emote-happy .av-pet { animation: pet-hop .45s ease-out; }
+.emote-cheer .av-pet { animation: pet-hop .5s ease-in-out infinite; }
+.emote-sad .av-pet { animation: pet-fright .4s ease-in-out; }
+.emote-happy .dragon-fire, .emote-cheer .dragon-fire { animation: puff .6s ease-out; }
+.emote-happy .cat-tail, .emote-cheer .cat-tail { animation-duration: .35s; }
+.pet-emote { font: 800 18px/1 Inter, system-ui, sans-serif; transform-box: fill-box; transform-origin: center; animation: emote-float .9s ease-out forwards; }
+.pet-emote-happy { fill: #e0465a; }
+.pet-emote-sad { fill: #b4373a; font-size: 22px; }
+.pet-emote-cheer { fill: #c8962e; animation: emote-bob .8s ease-in-out infinite; }
+@keyframes pet-hop { 0%,100% { transform: translateY(0); } 40% { transform: translateY(-16px) rotate(-6deg); } 70% { transform: translateY(-4px); } }
+@keyframes pet-fright { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-5px) scale(.94); } 40% { transform: translateX(5px) scale(.94); } 60% { transform: translateX(-3px); } }
+@keyframes emote-float { 0% { transform: translateY(6px) scale(.4); opacity: 0; } 25% { transform: translateY(0) scale(1.15); opacity: 1; } 100% { transform: translateY(-14px) scale(1); opacity: 0; } }
+@keyframes emote-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
 @media (prefers-reduced-motion: reduce) {
   .avatar *, .avatar { animation: none !important; }
 }

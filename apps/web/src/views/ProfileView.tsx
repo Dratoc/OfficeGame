@@ -1,3 +1,5 @@
+import { ACHIEVEMENTS } from '@inbox/shared';
+import { AchievementGrid } from '../components/Achievements';
 import { useEffect, useState } from 'react';
 import { Check, Clock, Swords, UserPlus } from 'lucide-react';
 import { levelProgress, type ProfileDto } from '@inbox/shared';
@@ -115,6 +117,13 @@ export function ProfileView({ username }: { username: string }) {
           <span>Objetos</span>
           <strong>{p.inventoryCount}</strong>
         </div>
+      </section>
+
+      <section>
+        <h3>
+          Logros <span className="muted small">{p.achievements.length} de {ACHIEVEMENTS.length}</span>
+        </h3>
+        <AchievementGrid earned={p.achievements} />
       </section>
 
       <section>

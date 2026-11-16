@@ -14,6 +14,8 @@ Un juego multijugador casual escondido dentro de una bandeja de correo de oficin
 - Cuatro modos 1 contra 1 con la misma garantía: **Typing Battle** (10 s), **Cálculo Express** (20 s, sumas, restas y multiplicaciones), **Atajos de Teclado** (15 s, combinaciones como Ctrl+Shift+S y símbolos) y **Tarea Express** (20 s, tareas de oficina ficticias paso a paso, como configurar una videollamada). Las respuestas correctas nunca salen del servidor.
 - **Racing Battle** de 2 a 4 jugadores: carrera escribiendo hasta 30 palabras, con una pista animada por jugador. La partida rápida arma la carrera con 4 jugadores, o con los que haya (mínimo 2) cuando el primero lleva 8 s esperando. Termina antes si todos llegan a la meta. Los puestos, el Elo (promedio de duelos entre cada par) y la XP de podio se calculan en el servidor.
 - Duelo animado en vivo: cada acierto lanza un proyectil al rival (fuego, estrella o avión de papel según tu avatar), cada error te hace tropezar, con barra de quién va ganando y combos.
+- Mascotas que reaccionan en la batalla: saltan y muestran un corazón cuando aciertas (los dragones escupen fuego), se asustan cuando fallas o te golpean, y bailan con un combo o al cruzar la meta.
+- 15 logros (bronce, plata y oro) otorgados por el servidor al terminar cada partida: primera victoria, rachas, velocidad, cero errores, carreras, niveles y más. Se muestran en la escena final, en el correo de resultado y en el perfil.
 - Escena final animada (ganador celebra, perdedor bajo la nube), XP, niveles, rating Elo, objetos desbloqueados y correo de resultado.
 - Ranking global, perfil con estadísticas e historial, y un calendario de vista previa.
 

@@ -1,5 +1,7 @@
 import {
+  ACHIEVEMENTS_BY_ID,
   GAME_MODES,
+  newAchievements,
   ITEMS_BY_ID,
   multiEloDeltas,
   itemsUnlockedAtLevel,
@@ -9,6 +11,7 @@ import {
   type MailDto,
   type MatchResult,
   type MatchSummaryDto,
+  type AchievementContext,
 } from '@inbox/shared';
 import type { Prisma } from '@prisma/client';
 import { prisma } from './db';
@@ -40,6 +43,7 @@ export async function getMatchSummary(matchId: string): Promise<MatchSummaryDto 
       user: toPublicUser(p.user),
       result: (p.result ?? 'draw') as MatchResult,
       placement: p.placement ?? 1,
+      achievements: p.achievements,
       correctWords: p.correctWords,
       errors: p.errors,
       correctChars: p.correctChars,
@@ -139,7 +143,7 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
         await tx.inventory.createMany({ data: unlocked.map((itemId) => ({ userId: o.userId, itemId, source: 'level' })), skipDuplicates: true });
       }
 
-      await tx.playerStats.update({
+      const after = await tx.playerStats.update({
         where: { userId: o.userId },
         data: {
           xp: newXp,
@@ -170,6 +174,19 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
         },
       });
 
+      const earned = await grantAchievements(tx, o.userId, input.matchId, {
+        mode: input.mode,
+        result,
+        placement: place,
+        players: n,
+        correct: o.correctWords,
+        errors: o.errors,
+        wpm: o.wpm,
+        level: newLevel,
+        wins: after.wins,
+        played: after.wins + after.losses + after.draws,
+      });
+
       const oppName = nameOf.get(oppId) ?? 'tu rival';
       const subject = n > 2
         ? result === 'abandon'
@@ -192,6 +209,7 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
         `Experiencia ganada: +${xpGained} XP. Rating: ${me.rating} → ${Math.max(0, me.rating + delta)}.`,
         newLevel > me.level ? `\n¡Subiste al nivel ${newLevel}!` : '',
         unlockedNames.length ? `Nuevos objetos en tu armería: ${unlockedNames.join(', ')}.` : '',
+        earned.length ? `Logros desbloqueados: ${earned.map((id) => `«${ACHIEVEMENTS_BY_ID.get(id)?.name ?? id}»`).join(', ')}.` : '',
         '\nAtentamente,\nDepartamento de Duelos y Asuntos Épicos',
       ]
         .filter(Boolean)
@@ -205,4 +223,43 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
   mails.forEach(pushMail);
   const summary = await getMatchSummary(input.matchId);
   return summary!;
+}
+
+/**
+ * Checks every achievement for one player at the end of a match and stores the new ones.
+ * Runs inside the match transaction, after the player's stats were updated.
+ */
+async function grantAchievements(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  matchId: string,
+  base: Omit<AchievementContext, 'winStreak' | 'modesWon' | 'friends' | 'hasPet'>,
+): Promise<string[]> {
+  const [owned, recent, modesWon, friends, avatar] = await Promise.all([
+    tx.achievement.findMany({ where: { userId }, select: { achievementId: true } }),
+    tx.matchParticipant.findMany({
+      where: { userId, result: { not: null } },
+      orderBy: { match: { createdAt: 'desc' } },
+      select: { result: true },
+      take: 20,
+    }),
+    tx.matchParticipant.findMany({ where: { userId, result: 'win' }, select: { match: { select: { mode: true } } } }),
+    tx.friendship.count({ where: { status: 'accepted', OR: [{ requesterId: userId }, { addresseeId: userId }] } }),
+    tx.avatar.findUnique({ where: { userId }, select: { config: true } }),
+  ]);
+  let winStreak = 0;
+  for (const r of recent) {
+    if (r.result !== 'win') break;
+    winStreak++;
+  }
+  const equipped = (avatar?.config as { equipped?: Record<string, string | undefined> } | null)?.equipped ?? {};
+  const earned = newAchievements(
+    { ...base, winStreak, modesWon: new Set(modesWon.map((m) => m.match.mode)).size, friends, hasPet: !!equipped.pet },
+    owned.map((x) => x.achievementId),
+  );
+  if (earned.length) {
+    await tx.achievement.createMany({ data: earned.map((achievementId) => ({ userId, achievementId, matchId })), skipDuplicates: true });
+    await tx.matchParticipant.update({ where: { matchId_userId: { matchId, userId } }, data: { achievements: earned } });
+  }
+  return earned;
 }
