@@ -105,10 +105,13 @@ export function DuelStage({ me, opp, effects, now, unit, finished }: { me: Side;
           const hurt = recent(effects, foe.user.id, 'hit', now - FLY_MS * 0.8, 320);
           const stumble = recent(effects, side.user.id, 'miss', now, 450) || recent(effects, side.user.id, 'reject', now, 450);
           const leading = left ? me.correctWords > opp.correctWords : opp.correctWords > me.correctWords;
+          const last = [...effects].reverse().find((e) => e.userId === side.user.id || (e.userId === foe.user.id && e.kind === 'hit'));
+          const combo = streak(effects, side.user.id) >= 3;
+          const emote = finished ? (leading ? 'cheer' : undefined) : attacking ? 'happy' : stumble || hurt ? 'sad' : combo ? 'cheer' : undefined;
           return (
             <div key={side.user.id} className={`duelist ${left ? 'left' : 'right'} ${attacking ? 'attack' : ''} ${hurt ? 'hurt' : ''} ${stumble ? 'stumble' : ''}`}>
               <div className="duelist-inner">
-                <Avatar config={side.user.avatar} pose={finished ? (leading ? 'win' : 'idle') : 'idle'} size={150} />
+                <Avatar config={side.user.avatar} pose={finished ? (leading ? 'win' : 'idle') : 'idle'} size={150} emote={emote} emoteKey={last?.id} />
               </div>
               <AnimatePresence>
                 {stumble && (

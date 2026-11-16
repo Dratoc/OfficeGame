@@ -609,3 +609,23 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
   .race-lane { grid-template-columns: 80px minmax(0, 1fr); }
   .race-track { height: 70px; }
 }
+
+/* ---------- Achievements ---------- */
+.medal { flex-shrink: 0; display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: #fff; box-shadow: inset 0 -3px 0 rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.15); }
+.medal-lg { width: 56px; height: 56px; }
+.medal.tier-bronze { background: radial-gradient(circle at 35% 30%, #f1c79a, #b06a2c 70%); }
+.medal.tier-silver { background: radial-gradient(circle at 35% 30%, #f4f6f8, #8c979f 70%); }
+.medal.tier-gold { background: radial-gradient(circle at 35% 30%, #fff1b8, #c8962e 70%); }
+.medal.locked { background: #e7e3da; color: #b3ada0; box-shadow: inset 0 0 0 2px #d8d2c5; }
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.ach { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.ach.locked { background: #faf8f4; }
+.ach.locked .ach-text strong { color: var(--muted); }
+.ach-text { display: flex; flex-direction: column; min-width: 0; }
+.ach-text strong { font-size: 13.5px; }
+.ach-text span { font-size: 12px; color: var(--muted); line-height: 1.3; }
+.ach-unlocked { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.ach-pop { display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 10px; border-radius: 14px; background: linear-gradient(180deg, #fffaf0, #fbf0d6); border: 1px solid #ecd7a4; box-shadow: var(--shadow-sm); max-width: 340px; }
+.ach-pop div { display: flex; flex-direction: column; }
+.ach-pop strong { font-size: 15px; }
+.ach-pop small { font-size: 12px; color: var(--muted); }

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Crown, RotateCcw, Sparkles } from 'lucide-react';
-import { GAME_MODES, ITEMS_BY_ID, type MatchSummaryDto, type ParticipantResultDto } from '@inbox/shared';
+import { ACHIEVEMENTS_BY_ID, GAME_MODES, ITEMS_BY_ID, type MatchSummaryDto, type ParticipantResultDto } from '@inbox/shared';
 import { Avatar } from '../avatar/Avatar';
 import { RarityBadge } from '../components/Bits';
 import { useApp } from '../lib/store';
 import { api } from '../lib/api';
 import { startQuickMatch } from '../components/QuickMatch';
+import { AchievementMedal } from '../components/Achievements';
 
 const RESULT_TEXT: Record<ParticipantResultDto['result'], string> = {
   win: '¡Victoria!',
@@ -176,6 +177,21 @@ export function ResultScene({ summary }: { summary: MatchSummaryDto }) {
           </motion.div>
         )}
       </div>
+
+      {mine.achievements.length > 0 && (
+        <div className="ach-unlocked">
+          {mine.achievements.map((id, i) => (
+            <motion.div key={id} className="ach-pop" initial={{ scale: 0.4, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} transition={{ delay: 1.4 + i * 0.25, type: 'spring', stiffness: 300, damping: 15 }}>
+              <AchievementMedal id={id} size="lg" />
+              <div>
+                <span className="reward-label">Logro desbloqueado</span>
+                <strong>{ACHIEVEMENTS_BY_ID.get(id)?.name}</strong>
+                <small>{ACHIEVEMENTS_BY_ID.get(id)?.description}</small>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       {mine.unlocked.length > 0 && (
         <motion.div className="unlocks" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.5 }}>

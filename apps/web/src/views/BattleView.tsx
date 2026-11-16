@@ -184,7 +184,7 @@ export function BattleView({ matchId }: { matchId: string }) {
               (p, i) =>
                 p && (
                   <motion.div key={p.user.id} className={`lobby-player ${i === 1 && everyone.length <= 2 ? 'flip' : ''}`} initial={{ opacity: 0, x: i === 0 ? -40 : 40 }} animate={{ opacity: 1, x: 0 }}>
-                    <Avatar config={p.user.avatar} pose={p.ready ? 'wave' : 'idle'} size={everyone.length > 2 ? 140 : 190} />
+                    <Avatar config={p.user.avatar} pose={p.ready ? 'wave' : 'idle'} size={everyone.length > 2 ? 140 : 190} emote={p.ready ? 'cheer' : undefined} />
                     <strong>{p.user.username}</strong>
                     <span className={`ready-tag ${p.ready ? 'on' : ''} ${!p.connected ? 'off' : ''}`}>{!p.connected ? 'Desconectado' : p.ready ? '¡Listo!' : 'Preparándose…'}</span>
                   </motion.div>

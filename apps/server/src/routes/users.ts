@@ -60,7 +60,12 @@ export async function userRoutes(app: FastifyInstance) {
     const profile: ProfileDto = {
       friendStatus: await friendStatus(viewerId, row.id),
       online: isOnline(row.id),
-      user: toPublicUser(row), stats: await getStatsDto(row.id), history: await history(row.id), inventoryCount: row._count.inventory };
+      user: toPublicUser(row),
+      stats: await getStatsDto(row.id),
+      history: await history(row.id),
+      inventoryCount: row._count.inventory,
+      achievements: (await prisma.achievement.findMany({ where: { userId: row.id }, orderBy: { unlockedAt: 'asc' } })).map((x) => ({ id: x.achievementId, unlockedAt: x.unlockedAt.toISOString() })),
+    };
     return profile;
   });
 
