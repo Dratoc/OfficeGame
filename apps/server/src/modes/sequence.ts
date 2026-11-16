@@ -1,5 +1,6 @@
 import {
   GAME_MODES,
+  RACE_LENGTH,
   LATE_GRACE_MS,
   MIN_MS_PER_CHAR,
   compareTyping,
@@ -28,7 +29,7 @@ export interface SequenceState {
   players: Map<string, PlayerState>;
 }
 
-export type RejectReason = 'out-of-order' | 'not-started' | 'too-late' | 'too-fast' | 'unknown-player';
+export type RejectReason = 'finished' | 'out-of-order' | 'not-started' | 'too-late' | 'too-fast' | 'unknown-player';
 
 export interface SequenceActionResult {
   accepted: boolean;
@@ -42,6 +43,8 @@ interface Options {
   minGapMs: (answer: string) => number;
   /** Typing also caps sustained words per minute. */
   capWpm: boolean;
+  /** Races end for a player once they reach this many correct answers. */
+  finishAt?: number;
 }
 
 /**
@@ -53,8 +56,8 @@ export function createSequenceMode(id: PlayableModeId, opts: Options): GameMode<
   return {
     id,
     durationMs,
-    minPlayers: 2,
-    maxPlayers: 2,
+    minPlayers: GAME_MODES[id].minPlayers,
+    maxPlayers: GAME_MODES[id].maxPlayers,
 
     createState(seed, playerIds) {
       const { prompts, answers } = generatePrompts(id, seed);
@@ -72,6 +75,7 @@ export function createSequenceMode(id: PlayableModeId, opts: Options): GameMode<
         p.rejected++;
         return { accepted: false, correct: false, reason, stats: p };
       };
+      if (opts.finishAt && p.correctWords >= opts.finishAt) return reject('finished');
       if (action.index !== p.nextIndex) return reject('out-of-order');
       if (ctx.now > ctx.endAt + LATE_GRACE_MS) return reject('too-late');
       // The client's timestamp is only trusted within one second of when we received it.
@@ -104,10 +108,20 @@ export function createSequenceMode(id: PlayableModeId, opts: Options): GameMode<
         correctWords: p.correctWords,
         errors: p.errors,
         correctChars: p.correctChars,
-        // Typing reports words per minute; the other modes report correct answers per minute.
-        wpm: id === 'typing' ? computeWpm(p.correctChars, durationMs) : Math.round(p.correctWords / (durationMs / 60_000)),
+        // Typing reports words per minute (over the time a racer needed to finish); the other
+        // modes report correct answers per minute.
+        wpm:
+          id === 'typing' || id === 'racing'
+            ? computeWpm(p.correctChars, opts.finishAt && p.correctWords >= opts.finishAt ? Math.max(p.lastCorrectAt ?? durationMs, 1) : durationMs)
+            : Math.round(p.correctWords / (durationMs / 60_000)),
         accuracy: computeAccuracy(p),
       };
+    },
+
+    isDone(state, activeIds) {
+      const goal = opts.finishAt;
+      if (!goal) return false;
+      return activeIds.length > 0 && activeIds.every((uid) => (state.players.get(uid)?.correctWords ?? 0) >= goal);
     },
 
     compare(state, a, b) {
@@ -119,6 +133,7 @@ export function createSequenceMode(id: PlayableModeId, opts: Options): GameMode<
 }
 
 export const typingMode = createSequenceMode('typing', { minGapMs: (w) => w.trim().length * MIN_MS_PER_CHAR, capWpm: true });
+export const racingMode = createSequenceMode('racing', { minGapMs: (w) => w.trim().length * MIN_MS_PER_CHAR, capWpm: true, finishAt: RACE_LENGTH });
 export const mathMode = createSequenceMode('math', { minGapMs: () => 250, capWpm: false });
 export const keysMode = createSequenceMode('keys', { minGapMs: () => 120, capWpm: false });
 export const taskMode = createSequenceMode('task', { minGapMs: () => 250, capWpm: false });

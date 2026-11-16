@@ -1,7 +1,7 @@
 import {
   GAME_MODES,
   ITEMS_BY_ID,
-  eloDelta,
+  multiEloDeltas,
   itemsUnlockedAtLevel,
   levelForXp,
   xpForResult,
@@ -39,6 +39,7 @@ export async function getMatchSummary(matchId: string): Promise<MatchSummaryDto 
     participants: m.participants.map((p) => ({
       user: toPublicUser(p.user),
       result: (p.result ?? 'draw') as MatchResult,
+      placement: p.placement ?? 1,
       correctWords: p.correctWords,
       errors: p.errors,
       correctChars: p.correctChars,
@@ -63,24 +64,39 @@ export interface FinalizeInput {
   compare: (a: string, b: string) => number;
 }
 
-/** Decides results for a two player match. */
-export function decideResults(input: Pick<FinalizeInput, 'outcomes' | 'abandoned' | 'compare'>): Map<string, MatchResult> {
-  const [a, b] = input.outcomes.map((o) => o.userId) as [string, string];
-  const res = new Map<string, MatchResult>();
-  const aOut = input.abandoned.has(a);
-  const bOut = input.abandoned.has(b);
-  if (aOut && bOut) {
-    res.set(a, 'abandon').set(b, 'abandon');
-  } else if (aOut || bOut) {
-    res.set(a, aOut ? 'abandon' : 'win').set(b, bOut ? 'abandon' : 'win');
-  } else {
-    const c = input.compare(a, b);
-    res.set(a, c > 0 ? 'win' : c < 0 ? 'loss' : 'draw').set(b, c < 0 ? 'win' : c > 0 ? 'loss' : 'draw');
-  }
-  return res;
+export interface Standing {
+  result: MatchResult;
+  /** 1 is first. Players who tie share a place; abandons come last. */
+  place: number;
 }
 
-const scoreOf = (r: MatchResult) => (r === 'win' ? 1 : r === 'draw' ? 0.5 : 0);
+/**
+ * Decides results for a match of any size. Players still in the match are ranked with
+ * `compare`; whoever ends alone in first place wins, a shared first place is a draw, and
+ * everyone else loses. Players who abandoned rank last.
+ */
+export function decideResults(input: Pick<FinalizeInput, 'outcomes' | 'abandoned' | 'compare'>): Map<string, Standing> {
+  const ids = input.outcomes.map((o) => o.userId);
+  const res = new Map<string, Standing>();
+  const active = ids.filter((id) => !input.abandoned.has(id));
+  const gone = ids.filter((id) => input.abandoned.has(id));
+  if (active.length === 0) {
+    ids.forEach((id) => res.set(id, { result: 'abandon', place: 1 }));
+    return res;
+  }
+  const ranked = [...active].sort((a, b) => input.compare(b, a));
+  let place = 1;
+  ranked.forEach((id, i) => {
+    if (i > 0 && input.compare(ranked[i - 1]!, id) !== 0) place = i + 1;
+    res.set(id, { result: 'loss', place });
+  });
+  const firsts = ranked.filter((id) => res.get(id)!.place === 1);
+  for (const id of firsts) res.get(id)!.result = firsts.length === 1 ? 'win' : 'draw';
+  // Someone who outlasted every rival who left still wins.
+  if (active.length === 1) res.get(active[0]!)!.result = 'win';
+  gone.forEach((id) => res.set(id, { result: 'abandon', place: active.length + 1 }));
+  return res;
+}
 
 /**
  * Persists a finished match in one transaction: participants, player stats (XP, level,
@@ -88,9 +104,10 @@ const scoreOf = (r: MatchResult) => (r === 'win' ? 1 : r === 'draw' ? 0.5 : 0);
  * Idempotent: a match that is already finished is returned as is.
  */
 export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryDto> {
-  const results = decideResults(input);
+  const standings = decideResults(input);
   const ids = input.outcomes.map((o) => o.userId);
-  const bothAbandoned = [...results.values()].every((r) => r === 'abandon');
+  const n = ids.length;
+  const allAbandoned = [...standings.values()].every((r) => r.result === 'abandon');
   const mails: MailDto[] = [];
 
   await prisma.$transaction(async (tx) => {
@@ -102,16 +119,17 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
     const users = await tx.user.findMany({ where: { id: { in: ids } }, select: { id: true, username: true } });
     const nameOf = new Map(users.map((u) => [u.id, u.username]));
     let winnerId: string | null = null;
+    const deltas = allAbandoned ? ids.map(() => 0) : multiEloDeltas(ids.map((id) => ({ rating: byId.get(id)!.rating, place: standings.get(id)!.place })));
+    const deltaOf = new Map(ids.map((id, i) => [id, deltas[i]!]));
 
     for (const o of input.outcomes) {
       const me = byId.get(o.userId)!;
       const oppId = ids.find((id) => id !== o.userId)!;
-      const opp = byId.get(oppId)!;
-      const result = results.get(o.userId)!;
+      const { result, place } = standings.get(o.userId)!;
       if (result === 'win') winnerId = o.userId;
 
-      const delta = bothAbandoned ? 0 : eloDelta(me.rating, opp.rating, scoreOf(result));
-      const xpGained = xpForResult(result, o.correctWords);
+      const delta = deltaOf.get(o.userId)!;
+      const xpGained = xpForResult(result, o.correctWords, place, n);
       const newXp = me.xp + xpGained;
       const newLevel = levelForXp(newXp);
 
@@ -128,7 +146,7 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
           level: newLevel,
           rating: Math.max(0, me.rating + delta),
           wins: { increment: result === 'win' ? 1 : 0 },
-          losses: { increment: result === 'loss' || (result === 'abandon' && !bothAbandoned) ? 1 : 0 },
+          losses: { increment: result === 'loss' || (result === 'abandon' && !allAbandoned) ? 1 : 0 },
           draws: { increment: result === 'draw' ? 1 : 0 },
         },
       });
@@ -147,13 +165,19 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
           levelAfter: newLevel,
           xpGained,
           result,
+          placement: place,
           unlocked,
         },
       });
 
       const oppName = nameOf.get(oppId) ?? 'tu rival';
-      const subject =
-        result === 'win' ? `Victoria contra ${oppName}` : result === 'loss' ? `Derrota contra ${oppName}` : result === 'draw' ? `Empate con ${oppName}` : `Partida abandonada contra ${oppName}`;
+      const subject = n > 2
+        ? result === 'abandon'
+          ? `${GAME_MODES[input.mode].name}: abandonaste la carrera`
+          : result === 'win'
+            ? `${GAME_MODES[input.mode].name}: ¡1.º lugar de ${n}!`
+            : `${GAME_MODES[input.mode].name}: ${place}.º lugar de ${n}`
+        : result === 'win' ? `Victoria contra ${oppName}` : result === 'loss' ? `Derrota contra ${oppName}` : result === 'draw' ? `Empate con ${oppName}` : `Partida abandonada contra ${oppName}`;
       const unlockedNames = unlocked.map((id) => ITEMS_BY_ID.get(id)?.name ?? id);
       const body = [
         result === 'win'
@@ -163,6 +187,7 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
             : result === 'draw'
               ? 'Estimado/a colaborador/a:\n\nEl duelo terminó en empate. El consejo real lo considera "un resultado sinérgico".'
               : 'Estimado/a colaborador/a:\n\nLa partida terminó porque alguien se desconectó.',
+        n > 2 && result !== 'abandon' ? `\nTerminaste en el ${place}.º lugar de ${n}.` : '',
         `\n${GAME_MODES[input.mode].name}: ${o.correctWords} ${GAME_MODES[input.mode].unit} correctos, ${o.errors} errores.`,
         `Experiencia ganada: +${xpGained} XP. Rating: ${me.rating} → ${Math.max(0, me.rating + delta)}.`,
         newLevel > me.level ? `\n¡Subiste al nivel ${newLevel}!` : '',

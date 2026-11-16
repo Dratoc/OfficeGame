@@ -69,8 +69,8 @@ export interface ServerToClientEvents {
   'error:message': (data: { message: string }) => void;
   'presence:update': (data: { userId: string; online: boolean }) => void;
   'friends:changed': () => void;
-  'queue:status': (data: { searching: boolean; since: number | null }) => void;
-  'queue:matched': (data: { matchId: string; opponent: PublicUser }) => void;
+  'queue:status': (data: { searching: boolean; since: number | null; mode?: PlayableModeId; players?: number }) => void;
+  'queue:matched': (data: { matchId: string; mode: PlayableModeId; opponent: PublicUser; opponents: PublicUser[] }) => void;
 }
 
 export interface ClientToServerEvents {

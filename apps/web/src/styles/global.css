@@ -577,3 +577,35 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 @media (prefers-reduced-motion: reduce) {
   .duelist-inner { animation: none !important; }
 }
+
+/* ---------- Racing Battle ---------- */
+.lobby-stage.crowd { gap: 36px; }
+.race { display: flex; flex-direction: column; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 18px; box-shadow: var(--shadow-sm); }
+.race-lane { display: grid; grid-template-columns: 130px minmax(0, 1fr); align-items: end; gap: 14px; padding: 4px 0; border-bottom: 1px solid var(--line-2); }
+.race-lane:last-child { border-bottom: 0; }
+.race-lane.mine .race-name strong { color: var(--brand-600); }
+.race-name { display: flex; flex-direction: column; min-width: 0; padding-bottom: 10px; }
+.race-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.race-name span { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.race-track { position: relative; height: 84px; margin-right: 46px; border-bottom: 3px dashed var(--line); background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), var(--line-2) calc(10% - 1px) 10%); }
+.race-fill { position: absolute; left: 0; bottom: -3px; height: 3px; background: var(--brand); transition: width .3s; }
+.race-lane.mine .race-fill { background: var(--gold); }
+.race-flag { position: absolute; right: -14px; top: 6px; bottom: 0; width: 14px; background: repeating-conic-gradient(var(--ink) 0 25%, #fff 0 50%) 0 0 / 7px 7px; border-radius: 2px; }
+.race-runner { position: absolute; bottom: -2px; transform: translateX(-50%); }
+.race-runner.stumble .avatar { animation: stumble .45s ease-in-out; }
+.race-place { position: absolute; top: -4px; right: -18px; min-width: 30px; height: 24px; padding: 0 6px; border-radius: 99px; display: grid; place-items: center; font-weight: 800; font-size: 12px; color: #fff; background: #8c979f; box-shadow: var(--shadow-sm); }
+.race-place.p1 { background: linear-gradient(180deg, #f2c94c, #c8962e); }
+.race-place.p2 { background: linear-gradient(180deg, #c9d1d9, #8c979f); }
+.race-place.p3 { background: linear-gradient(180deg, #e0a36a, #b06a2c); }
+.race-done { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 4px; box-shadow: var(--shadow-sm); }
+.race-done strong { font-family: var(--display); font-size: 24px; color: var(--gold); }
+.result-stage.is-race { gap: 18px; }
+.result-stage.is-race .podium-block { width: 150px; }
+.podium.place-1 .podium-block { height: 96px; }
+.podium.place-2 .podium-block { height: 70px; background: linear-gradient(180deg, #eef1f4, #c9d1d9); }
+.podium.place-3 .podium-block { height: 52px; background: linear-gradient(180deg, #f1d2b4, #d39a62); }
+.podium.place-4 .podium-block, .podium.place-9 .podium-block { height: 40px; }
+@media (max-width: 700px) {
+  .race-lane { grid-template-columns: 80px minmax(0, 1fr); }
+  .race-track { height: 70px; }
+}

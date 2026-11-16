@@ -1,3 +1,4 @@
+import type { PlayableModeId } from '@inbox/shared';
 import { useEffect } from 'react';
 import { TopBar } from './components/TopBar';
 import { Sidebar } from './components/Sidebar';
@@ -41,11 +42,16 @@ function useRealtime(enabled: boolean) {
     const onError = (err: Error) => {
       if (err.message === 'unauthorized') void useApp.getState().refreshMe();
     };
-    const onQueue = (q: { searching: boolean; since: number | null }) => useApp.setState((st) => ({ queue: { ...q, mode: st.queue.mode } }));
-    const onMatched = ({ matchId, opponent }: { matchId: string; opponent: { username: string } }) => {
+    const onQueue = (q: { searching: boolean; since: number | null; mode?: PlayableModeId; players?: number }) => useApp.setState((st) => ({ queue: { ...q, mode: q.mode ?? st.queue.mode } }));
+    const onMatched = ({ matchId, opponent, opponents }: { matchId: string; opponent: { username: string }; opponents?: { username: string }[] }) => {
       const st = useApp.getState();
       useApp.setState({ queue: { searching: false, since: null } });
-      st.toast({ title: '¡Rival encontrado!', body: `Te enfrentas a ${opponent.username}.`, tone: 'success' });
+      const many = (opponents?.length ?? 1) > 1;
+      st.toast(
+        many
+          ? { title: '¡Carrera lista!', body: `Corres contra ${opponents!.map((o) => o.username).join(', ')}.`, tone: 'success' }
+          : { title: '¡Rival encontrado!', body: `Te enfrentas a ${opponent.username}.`, tone: 'success' },
+      );
       st.go({ kind: 'battle', matchId });
     };
     const onSocial = () => void useApp.getState().refreshSocial();
