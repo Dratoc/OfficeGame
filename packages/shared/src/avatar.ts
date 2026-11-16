@@ -43,7 +43,7 @@ export interface ItemDef {
   /** Level needed when unlockType is 'level'. */
   unlockLevel: number;
   description: string;
-  /** Reserved for the future cosmetic shop. Never affects gameplay. */
+  /** Sold in the shop for doubloons. Items never affect gameplay. */
   purchasable: boolean;
 }
 
@@ -55,7 +55,8 @@ const item = (id: string, slot: Slot, name: string, rarity: Rarity, unlockLevel:
   unlockType: unlockLevel <= 1 ? 'starter' : 'level',
   unlockLevel,
   description,
-  purchasable: false,
+  // Anything you would unlock by leveling up can also be bought in the shop. Cosmetic only.
+  purchasable: unlockLevel > 1,
 });
 
 export const ITEM_CATALOG: readonly ItemDef[] = [

@@ -1,5 +1,7 @@
 import {
   ACHIEVEMENTS_BY_ID,
+  COINS_PER_ACHIEVEMENT,
+  coinsForResult,
   GAME_MODES,
   newAchievements,
   ITEMS_BY_ID,
@@ -44,6 +46,7 @@ export async function getMatchSummary(matchId: string): Promise<MatchSummaryDto 
       result: (p.result ?? 'draw') as MatchResult,
       placement: p.placement ?? 1,
       achievements: p.achievements,
+      coinsGained: p.coinsGained,
       correctWords: p.correctWords,
       errors: p.errors,
       correctChars: p.correctChars,
@@ -134,6 +137,7 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
 
       const delta = deltaOf.get(o.userId)!;
       const xpGained = xpForResult(result, o.correctWords, place, n);
+      const coins = coinsForResult(result, o.correctWords, place, n);
       const newXp = me.xp + xpGained;
       const newLevel = levelForXp(newXp);
 
@@ -152,6 +156,7 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
           wins: { increment: result === 'win' ? 1 : 0 },
           losses: { increment: result === 'loss' || (result === 'abandon' && !allAbandoned) ? 1 : 0 },
           draws: { increment: result === 'draw' ? 1 : 0 },
+          coins: { increment: coins },
         },
       });
 
@@ -171,6 +176,7 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
           result,
           placement: place,
           unlocked,
+          coinsGained: coins,
         },
       });
 
@@ -186,6 +192,11 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
         wins: after.wins,
         played: after.wins + after.losses + after.draws,
       });
+      const bonus = earned.length * COINS_PER_ACHIEVEMENT;
+      if (bonus) {
+        await tx.playerStats.update({ where: { userId: o.userId }, data: { coins: { increment: bonus } } });
+        await tx.matchParticipant.update({ where: { matchId_userId: { matchId: input.matchId, userId: o.userId } }, data: { coinsGained: coins + bonus } });
+      }
 
       const oppName = nameOf.get(oppId) ?? 'tu rival';
       const subject = n > 2
@@ -206,7 +217,7 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
               : 'Estimado/a colaborador/a:\n\nLa partida terminó porque alguien se desconectó.',
         n > 2 && result !== 'abandon' ? `\nTerminaste en el ${place}.º lugar de ${n}.` : '',
         `\n${GAME_MODES[input.mode].name}: ${o.correctWords} ${GAME_MODES[input.mode].unit} correctos, ${o.errors} errores.`,
-        `Experiencia ganada: +${xpGained} XP. Rating: ${me.rating} → ${Math.max(0, me.rating + delta)}.`,
+        `Experiencia ganada: +${xpGained} XP. Doblones: +${coins + bonus}. Rating: ${me.rating} → ${Math.max(0, me.rating + delta)}.`,
         newLevel > me.level ? `\n¡Subiste al nivel ${newLevel}!` : '',
         unlockedNames.length ? `Nuevos objetos en tu armería: ${unlockedNames.join(', ')}.` : '',
         earned.length ? `Logros desbloqueados: ${earned.map((id) => `«${ACHIEVEMENTS_BY_ID.get(id)?.name ?? id}»`).join(', ')}.` : '',

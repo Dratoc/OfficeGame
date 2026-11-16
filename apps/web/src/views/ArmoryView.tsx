@@ -8,7 +8,7 @@ import { useApp } from '../lib/store';
 import { api, ApiError } from '../lib/api';
 
 export function ArmoryView() {
-  const { me, refreshMe, toast } = useApp();
+  const { me, refreshMe, toast, go } = useApp();
   const [draft, setDraft] = useState<AvatarConfig>(me!.avatar);
   const [slot, setSlot] = useState<Slot>('head');
   const [pose, setPose] = useState<Pose>('idle');
@@ -112,7 +112,7 @@ export function ArmoryView() {
             const on = draft.equipped[slot] === item.id;
             const preview: AvatarConfig = { ...draft, equipped: { ...draft.equipped, [slot]: item.id } };
             return (
-              <button key={item.id} className={`item-card rar-${item.rarity} ${on ? 'equipped' : ''} ${has ? '' : 'locked'}`} onClick={() => has && equip(slot, item.id)} title={item.description}>
+              <button key={item.id} className={`item-card rar-${item.rarity} ${on ? 'equipped' : ''} ${has ? '' : 'locked'}`} onClick={() => (has ? equip(slot, item.id) : item.purchasable && go({ kind: 'shop' }))} title={has ? item.description : `${item.description} Se desbloquea en el nivel ${item.unlockLevel} o en la Tienda.`}>
                 <div className="item-thumb">
                   <Avatar config={preview} size={96} crop={slot === 'pet' || slot === 'wings' || slot === 'cape' || slot === 'weapon' || slot === 'effect' ? 'full' : 'bust'} />
                   {!has && (

@@ -17,6 +17,7 @@ Un juego multijugador casual escondido dentro de una bandeja de correo de oficin
 - Duelo animado en vivo: cada acierto lanza un proyectil al rival (fuego, estrella o avión de papel según tu avatar), cada error te hace tropezar, con barra de quién va ganando y combos.
 - Mascotas que reaccionan en la batalla: saltan y muestran un corazón cuando aciertas (los dragones escupen fuego), se asustan cuando fallas o te golpean, y bailan con un combo o al cruzar la meta.
 - 16 logros (bronce, plata y oro) otorgados por el servidor al terminar cada partida: primera victoria, rachas, velocidad, cero errores, carreras, niveles y más. Se muestran en la escena final, en el correo de resultado y en el perfil.
+- Tienda del gremio con **doblones**, la moneda del juego: se ganan jugando (más al ganar o subir al podio) y con cada logro, y se gastan solo en cosméticos. Cada día hay 6 ofertas con 25 % de descuento. La compra es atómica en el servidor: no se puede gastar dos veces la misma moneda ni comprar dos veces un objeto. Los aportes con dinero real quedan como "Próximamente".
 - Escena final animada (ganador celebra, perdedor bajo la nube), XP, niveles, rating Elo, objetos desbloqueados y correo de resultado.
 - Ranking global, perfil con estadísticas e historial, y un calendario de vista previa.
 
@@ -79,7 +80,7 @@ apps/web          React + Vite + Framer Motion
 
 - Un solo proceso de servidor mantiene las partidas en vivo. Para varios servidores hay que fijar cada partida a un proceso (sticky sessions o adaptador Redis de Socket.IO).
 - Si el servidor se reinicia en medio de una partida, esa partida se anula.
-- Office Battle, calendario de torneos y tienda cosmética quedan preparados en el modelo, pero no implementados.
+- Office Battle, calendario de torneos y pagos con dinero real quedan preparados en el modelo, pero no implementados.
 
 ## Publicar en Render
 

@@ -165,6 +165,10 @@ export function ResultScene({ summary }: { summary: MatchSummaryDto }) {
           <span className="reward-label">Experiencia</span>
           <strong>+{mine.xpGained} XP</strong>
         </motion.div>
+        <motion.div className="reward reward-coins" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.08 }}>
+          <span className="reward-label">Doblones</span>
+          <strong>+{mine.coinsGained}</strong>
+        </motion.div>
         <motion.div className="reward" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.15 }}>
           <span className="reward-label">Rating</span>
           <strong className={ratingDelta >= 0 ? 'up' : 'down'}>

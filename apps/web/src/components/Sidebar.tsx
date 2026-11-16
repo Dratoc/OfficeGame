@@ -1,4 +1,4 @@
-import { CalendarDays, Inbox, PenSquare, Send, Shield, Swords, Trophy, UserRound, Users, Zap } from 'lucide-react';
+import { CalendarDays, Inbox, PenSquare, Send, Shield, ShoppingBag, Swords, Trophy, UserRound, Users, Zap } from 'lucide-react';
 import { startQuickMatch } from './QuickMatch';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { GAME_MODES, PLAYABLE_MODES } from '@inbox/shared';
@@ -78,6 +78,7 @@ export function Sidebar() {
  <Item icon={<Users size={18} />} label="Contactos" active={is('contacts')} count={friendRequests} onClick={() => go({ kind: 'contacts' })} />
         <Item icon={<Trophy size={18} />} label="Ranking" active={is('ranking')} onClick={() => go({ kind: 'ranking' })} />
         <Item icon={<Shield size={18} />} label="Armería" active={is('armory')} onClick={() => go({ kind: 'armory' })} />
+        <Item icon={<ShoppingBag size={18} />} label="Tienda" active={is('shop')} onClick={() => go({ kind: 'shop' })} />
         <Item icon={<UserRound size={18} />} label="Mi perfil" active={is('profile') && (view as { username: string }).username === me?.username} onClick={() => go({ kind: 'profile', username: me!.username })} />
         <Item icon={<CalendarDays size={18} />} label="Calendario" active={is('calendar')} badge="Pronto" onClick={() => go({ kind: 'calendar' })} />
       </div>
