@@ -7,6 +7,7 @@ import {
   type PublicUser,
   type RoomStateEvent,
   type Answer,
+  type OfficeInputBatch,
 } from '@inbox/shared';
 import { prisma } from '../lib/db';
 import { publicUserSelect, toPublicUser } from '../lib/users';
@@ -22,7 +23,7 @@ interface Room {
   matchId: string;
   modeId: GameModeId;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mode: GameMode<any, any, any>;
+  mode: GameMode<any, any, any, any>;
   players: Map<string, { user: PublicUser; sockets: number; ready: boolean }>;
   phase: Phase;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,6 +31,8 @@ interface Room {
   startAt: number | null;
   endAt: number | null;
   timers: NodeJS.Timeout[];
+  /** Simulation loop of real-time modes. */
+  loop: NodeJS.Timeout | null;
   dropTimers: Map<string, NodeJS.Timeout>;
   abandoned: Set<string>;
   finishing: Promise<void> | null;
@@ -75,6 +78,7 @@ export class MatchEngine {
         startAt: null,
         endAt: null,
         timers: [],
+        loop: null,
         dropTimers: new Map(),
         abandoned: new Set(),
         finishing: null,
@@ -192,6 +196,8 @@ export class MatchEngine {
       data: { status: 'playing', seed, words: room.mode.startPayload(room.state).answers, startedAt: new Date(room.startAt) },
     });
     this.broadcast(room);
+    // Real-time modes tick from the countdown on, so players see the arena before the start.
+    if (room.mode.tick) room.loop = setInterval(() => this.tick(room), room.mode.tickMs ?? 50);
     room.timers.push(
       setTimeout(() => {
         room.phase = 'playing';
@@ -211,7 +217,7 @@ export class MatchEngine {
 
   answer(userId: string, data: Answer): SequenceActionResult | null {
     const room = this.rooms.get(data.matchId);
-    if (!room || !room.state || !room.players.has(userId)) return null;
+    if (!room || !room.state || !room.players.has(userId) || room.mode.tick) return null;
     if (room.phase !== 'playing' && room.phase !== 'countdown') return null;
     if (room.abandoned.has(userId)) return null;
     const res = room.mode.applyAction(room.state, userId, data, { now: this.now(), startAt: room.startAt!, endAt: room.endAt! }) as SequenceActionResult;
@@ -236,9 +242,39 @@ export class MatchEngine {
     return res;
   }
 
+  private activeIds(room: Room): string[] {
+    return [...room.players.entries()].filter(([id, p]) => p.sockets > 0 && !room.abandoned.has(id)).map(([id]) => id);
+  }
+
+  /** One step of a real-time mode: run the simulation and send the frame to everyone. */
+  tick(room: Room) {
+    if ((room.phase !== 'playing' && room.phase !== 'countdown') || !room.state || !room.mode.tick || room.finishing) return;
+    const frame = room.mode.tick(room.state, { now: this.now(), startAt: room.startAt!, endAt: room.endAt!, activeIds: this.activeIds(room) });
+    if (frame) getIO()?.to(matchRoom(room.matchId)).emit('match:frame', { matchId: room.matchId, frame });
+    const remaining = [...room.players.keys()].filter((id) => !room.abandoned.has(id));
+    if (room.mode.isDone?.(room.state, remaining)) {
+      // A knockout ends the fight; leave a moment for the fall to play out.
+      if (room.loop) clearInterval(room.loop);
+      room.loop = null;
+      room.timers.push(setTimeout(() => void this.finish(room), 1200));
+    }
+  }
+
+  /** Inputs of a real-time mode (Office Battle). */
+  input(userId: string, data: OfficeInputBatch): boolean {
+    const room = this.rooms.get(data.matchId);
+    if (!room || !room.state || !room.mode.tick || !room.players.has(userId)) return false;
+    if (room.phase !== 'playing' && room.phase !== 'countdown') return false;
+    if (room.abandoned.has(userId)) return false;
+    const res = room.mode.applyAction(room.state, userId, { inputs: data.inputs }, { now: this.now(), startAt: room.startAt!, endAt: room.endAt! }) as { accepted: boolean };
+    return res.accepted;
+  }
+
   async finish(room: Room): Promise<void> {
     if (room.finishing) return room.finishing;
     room.finishing = (async () => {
+      if (room.loop) clearInterval(room.loop);
+      room.loop = null;
       room.timers.forEach(clearTimeout);
       room.dropTimers.forEach(clearTimeout);
       room.phase = 'finished';

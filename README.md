@@ -14,6 +14,8 @@ Un juego multijugador casual escondido dentro de una bandeja de correo de oficin
 - Cuatro modos 1 contra 1 con la misma garantía: **Typing Battle** (10 s), **Cálculo Express** (20 s, sumas, restas y multiplicaciones), **Atajos de Teclado** (15 s, combinaciones como Ctrl+Shift+S y símbolos) y **Tarea Express** (20 s, tareas de oficina ficticias paso a paso, como configurar una videollamada). Las respuestas correctas nunca salen del servidor.
 - **Puzzle Battle** de 2 a 4 jugadores (45 s): series numéricas, el intruso del grupo, anagramas de oficina y patrones de figuras. Gana quien resuelva 12 primero.
 - **Racing Battle** de 2 a 4 jugadores: carrera escribiendo hasta 30 palabras, con una pista animada por jugador. La partida rápida arma la carrera con 4 jugadores, o con los que haya (mínimo 2) cuando el primero lleva 8 s esperando. Termina antes si todos llegan a la meta. Los puestos, el Elo (promedio de duelos entre cada par) y la XP de podio se calculan en el servidor.
+- **Office Battle** 1 contra 1 en 3D (Three.js, 60 s): los avatares pelean dentro de una oficina con estandartes, antorchas y escritorios. Moverse (WASD o flechas), atacar (J o clic), bloquear de frente (K o clic derecho) y esquivar con voltereta (Espacio), con barras de vida y K.O. En el celular aparecen joystick y botones. **Autoritativo en el servidor**: los clientes solo envían entradas y el servidor simula a 30 pasos por segundo, decide cada golpe y envía el estado a ambos; el cliente predice su propio movimiento con las mismas reglas (`packages/shared/src/office.ts`) para que se sienta inmediato. Los objetos de la armería se ven en 3D pero no cambian el daño.
+- **Práctica 3D** contra un bot (Gerente Dragón) con tres dificultades, sin experiencia ni rating, para aprender los movimientos.
 - Duelo animado en vivo: cada acierto lanza un proyectil al rival (fuego, estrella o avión de papel según tu avatar), cada error te hace tropezar, con barra de quién va ganando y combos.
 - Mascotas que reaccionan en la batalla: saltan y muestran un corazón cuando aciertas (los dragones escupen fuego), se asustan cuando fallas o te golpean, y bailan con un combo o al cruzar la meta.
 - 16 logros (bronce, plata y oro) otorgados por el servidor al terminar cada partida: primera victoria, rachas, velocidad, cero errores, carreras, niveles y más. Se muestran en la escena final, en el correo de resultado y en el perfil.
@@ -67,20 +69,31 @@ apps/server       Fastify + Socket.IO + Prisma/PostgreSQL
 apps/web          React + Vite + Framer Motion
   src/avatar        Renderizador de avatar por capas y sus animaciones
   src/battle        Duelo animado y paneles de cada modo
+  src/office        Office Battle en 3D: oficina, avatares 3D, controles, predicción en línea y bot de práctica
   src/views         Bandeja, sala de batalla, escena final, armería, ranking, perfil
 ```
+
+### Prototipo de Office Battle sin servidor
+
+```bash
+node apps/web/demo/build-office-demo.mjs   # escribe apps/web/demo/office-practice.html
+```
+
+Es un solo archivo HTML con la práctica contra el bot, útil para probar la pelea sin base de datos.
 
 ## Cómo agregar un modo de juego
 
 1. Agrega el modo en `packages/shared/src/modes.ts` con `available: true` y, si es de preguntas en secuencia, su generador en `prompts.ts`.
 2. Implementa `GameMode` en `apps/server/src/modes/` (crear estado, aplicar acción, resultado, comparar) y regístralo en `registry.ts`.
+   Para un modo en tiempo real (como Office Battle), define también `tickMs` y `tick`: el motor llama a `tick` en cada paso y envía lo que devuelve a todos con `match:frame`.
 3. Crea su panel en `apps/web/src/battle/panels.tsx`. La sala, el reloj, la persistencia, el ranking y los correos ya funcionan para cualquier modo.
 
 ## Límites conocidos del MVP
 
 - Un solo proceso de servidor mantiene las partidas en vivo. Para varios servidores hay que fijar cada partida a un proceso (sticky sessions o adaptador Redis de Socket.IO).
 - Si el servidor se reinicia en medio de una partida, esa partida se anula.
-- Office Battle, calendario de torneos y pagos con dinero real quedan preparados en el modelo, pero no implementados.
+- Calendario de torneos y pagos con dinero real quedan preparados en el modelo, pero no implementados.
+- Office Battle es solo 1 contra 1 por ahora; el motor (`tickMs` y `tick` en `GameMode`) ya admite más jugadores.
 
 ## Publicar en Render
 

@@ -20,7 +20,12 @@ export interface PlayerOutcome {
  * persistence; a mode only knows how to start, apply a player action and rank players.
  * New modes (Racing, Puzzle, Office) implement this same interface.
  */
-export interface GameMode<State, Action, ActionResult> {
+export interface TickContext extends ActionContext {
+  /** Players who are connected and did not abandon. */
+  activeIds: string[];
+}
+
+export interface GameMode<State, Action, ActionResult, Frame = never> {
   id: GameModeId;
   durationMs: number;
   minPlayers: number;
@@ -34,4 +39,8 @@ export interface GameMode<State, Action, ActionResult> {
   isDone?(state: State, activeIds: string[]): boolean;
   /** Positive if a beats b, negative if b beats a, 0 draw. */
   compare(state: State, a: string, b: string): number;
+  /** Real-time modes (Office Battle) run a simulation every tickMs while the match is live. */
+  tickMs?: number;
+  /** Advances the simulation; the frame it returns goes to every player. */
+  tick?(state: State, ctx: TickContext): Frame | null;
 }

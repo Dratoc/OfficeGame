@@ -11,6 +11,7 @@ import { BattleView } from './views/BattleView';
 import { ResultLoader } from './views/ResultScene';
 import { ArmoryView } from './views/ArmoryView';
 import { ShopView } from './views/ShopView';
+import { PracticeView } from './views/PracticeView';
 import { RankingView } from './views/RankingView';
 import { ProfileView } from './views/ProfileView';
 import { CalendarView } from './views/CalendarView';
@@ -109,6 +110,7 @@ export function App() {
         {view.kind === 'calendar' && <CalendarView />}
         {view.kind === 'contacts' && <ContactsView />}
         {view.kind === 'shop' && <ShopView />}
+        {view.kind === 'practice' && <PracticeView />}
       </main>
       <ComposeDialog />
       <QuickMatch />

@@ -9,3 +9,4 @@ export * from './prompts';
 export * from './api';
 export * from './achievements';
 export * from './shop';
+export * from './office';

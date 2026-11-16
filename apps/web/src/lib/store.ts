@@ -13,7 +13,8 @@ export type View =
   | { kind: 'profile'; username: string }
   | { kind: 'calendar' }
   | { kind: 'contacts' }
-  | { kind: 'shop' };
+  | { kind: 'shop' }
+  | { kind: 'practice' };
 
 export interface Toast {
   id: number;

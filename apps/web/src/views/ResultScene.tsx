@@ -138,13 +138,19 @@ export function ResultScene({ summary }: { summary: MatchSummaryDto }) {
             </tr>
           </thead>
           <tbody>
-            {(
-              [
-                [words ? 'Palabras correctas' : `${cap(GAME_MODES[summary.mode].unit)} correctos`, 'correctWords'],
-                ['Errores', 'errors'],
-                [words ? 'Velocidad (PPM)' : 'Ritmo (aciertos/min)', 'wpm'],
-                ['Precisión', 'accuracy'],
-              ] as const
+            {(summary.mode === 'office'
+              ? ([
+                  ['Golpes dados', 'correctWords'],
+                  ['Golpes recibidos', 'errors'],
+                  ['Daño causado', 'correctChars'],
+                  ['Golpes acertados', 'accuracy'],
+                ] as const)
+              : ([
+                  [words ? 'Palabras correctas' : `${cap(GAME_MODES[summary.mode].unit)} correctos`, 'correctWords'],
+                  ['Errores', 'errors'],
+                  [words ? 'Velocidad (PPM)' : 'Ritmo (aciertos/min)', 'wpm'],
+                  ['Precisión', 'accuracy'],
+                ] as const)
             ).map(([label, key]) => (
               <tr key={key}>
                 <td>{label}</td>

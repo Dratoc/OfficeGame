@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { MAX_WORD_LENGTH } from './typing';
 import { PLAYABLE_MODES, type GameModeId, type PlayableModeId } from './modes';
 import type { Prompt } from './prompts';
+import type { OfficeFrame, OfficeInputBatch } from './office';
 import type { MailDto, MatchSummaryDto, PublicUser } from './api';
 
 /** Socket.IO protocol. Every client → server payload is validated with these schemas. */
@@ -66,6 +67,8 @@ export interface ServerToClientEvents {
   'match:go': (data: MatchGoEvent) => void;
   'match:word': (data: WordResultEvent) => void;
   'match:end': (summary: MatchSummaryDto) => void;
+  /** Office Battle: the authoritative state of the fight, every simulation tick. */
+  'match:frame': (data: { matchId: string; frame: OfficeFrame }) => void;
   'error:message': (data: { message: string }) => void;
   'presence:update': (data: { userId: string; online: boolean }) => void;
   'friends:changed': () => void;
@@ -79,6 +82,8 @@ export interface ClientToServerEvents {
   'room:leave': (data: RoomJoin) => void;
   'room:ready': (data: RoomJoin) => void;
   'match:answer': (data: Answer) => void;
+  /** Office Battle: a few steps of input (move, attack, block, dodge). */
+  'office:input': (data: OfficeInputBatch) => void;
   'queue:join': (data: { mode: PlayableModeId }) => void;
   'queue:leave': () => void;
 }
