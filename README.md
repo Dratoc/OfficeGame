@@ -73,3 +73,8 @@ apps/web          React + Vite + Framer Motion
 - Un solo proceso de servidor mantiene las partidas en vivo. Para varios servidores hay que fijar cada partida a un proceso (sticky sessions o adaptador Redis de Socket.IO).
 - Si el servidor se reinicia en medio de una partida, esa partida se anula.
 - Amigos, Racing, Puzzle, Office Battle, calendario de torneos y tienda cosmética quedan preparados en el modelo, pero no implementados.
+
+## Publicar en Render
+
+El archivo `render.yaml` crea el servidor web y la base de datos PostgreSQL. En Render: **New → Blueprint**, elige este repositorio y pulsa **Apply**. En unos minutos tendrás una URL pública (`https://inbox-arena-xxxx.onrender.com`).
+En el plan gratuito el servidor se duerme tras unos minutos sin uso y tarda cerca de un minuto en despertar.
