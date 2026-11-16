@@ -10,6 +10,7 @@ import { MailView } from './views/MailView';
 import { BattleView } from './views/BattleView';
 import { ResultLoader } from './views/ResultScene';
 import { ArmoryView } from './views/ArmoryView';
+import { ShopView } from './views/ShopView';
 import { RankingView } from './views/RankingView';
 import { ProfileView } from './views/ProfileView';
 import { CalendarView } from './views/CalendarView';
@@ -107,6 +108,7 @@ export function App() {
         {view.kind === 'profile' && <ProfileView key={view.username} username={view.username} />}
         {view.kind === 'calendar' && <CalendarView />}
         {view.kind === 'contacts' && <ContactsView />}
+        {view.kind === 'shop' && <ShopView />}
       </main>
       <ComposeDialog />
       <QuickMatch />

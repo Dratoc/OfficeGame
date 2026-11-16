@@ -21,6 +21,8 @@ export interface PlayerStatsDto {
   draws: number;
   winRate: number;
   rank: number | null;
+  /** Doubloons to spend in the shop. */
+  coins: number;
 }
 
 export interface MeDto extends PublicUser {
@@ -62,6 +64,8 @@ export interface ParticipantResultDto {
   placement: number;
   /** Achievements earned in this match. */
   achievements: string[];
+  /** Doubloons earned in this match, achievements included. */
+  coinsGained: number;
   correctWords: number;
   errors: number;
   correctChars: number;

@@ -12,7 +12,8 @@ export type View =
   | { kind: 'ranking' }
   | { kind: 'profile'; username: string }
   | { kind: 'calendar' }
-  | { kind: 'contacts' };
+  | { kind: 'contacts' }
+  | { kind: 'shop' };
 
 export interface Toast {
   id: number;

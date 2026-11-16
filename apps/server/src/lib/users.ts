@@ -39,7 +39,7 @@ export async function getStatsDto(userId: string): Promise<PlayerStatsDto> {
   const s = await prisma.playerStats.findUniqueOrThrow({ where: { userId } });
   const played = s.wins + s.losses + s.draws > 0;
   const rank = played ? (await prisma.playerStats.count({ where: { AND: [hasPlayed, { rating: { gt: s.rating } }] } })) + 1 : null;
-  return { level: s.level, xp: s.xp, rating: s.rating, wins: s.wins, losses: s.losses, draws: s.draws, winRate: winRate(s.wins, s.losses, s.draws), rank };
+  return { level: s.level, xp: s.xp, rating: s.rating, wins: s.wins, losses: s.losses, draws: s.draws, winRate: winRate(s.wins, s.losses, s.draws), rank, coins: s.coins };
 }
 
 export { hasPlayed };

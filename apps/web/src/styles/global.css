@@ -647,3 +647,41 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .puzzle-choice:hover:not(:disabled) { border-color: var(--brand); background: var(--brand-50); }
 .puzzle-choice:active:not(:disabled) { transform: scale(.98); }
 @media (max-width: 700px) { .puzzle-text { font-size: 28px; } .puzzle-choices.n3 { grid-template-columns: 1fr; } }
+
+/* ---------- Shop ---------- */
+.coins { display: inline-flex; align-items: center; gap: 5px; font-weight: 800; color: #8a6417; font-variant-numeric: tabular-nums; }
+.coins svg { color: var(--gold); }
+.topbar-coins { border: 0; background: rgba(255,255,255,.08); border-radius: 99px; padding: 5px 12px; }
+.topbar-coins .coins { color: #f3d98a; }
+.topbar-coins:hover { background: rgba(255,255,255,.16); }
+.shop { height: 100%; overflow-y: auto; padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 24px; }
+.shop-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+.shop-head h2 { font-family: var(--display); font-size: 28px; }
+.shop-balance { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding: 10px 16px; border-radius: 14px; background: linear-gradient(180deg, #fffaf0, #fbf0d6); border: 1px solid #ecd7a4; }
+.shop-balance .coins { font-size: 24px; }
+.shop-section { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.shop-section svg { color: var(--gold); }
+.shop-timer { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-weight: 500; }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+.shop-card { position: relative; display: flex; flex-direction: column; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow-sm); overflow: hidden; min-width: 0; }
+.shop-card.owned { opacity: .7; }
+.shop-preview { display: grid; place-items: center; padding: 10px 0 0; background: radial-gradient(160px 110px at 50% 70%, #eef5f3, transparent 70%); }
+.shop-card.rarity-epic .shop-preview { background: radial-gradient(160px 110px at 50% 70%, #efe8ff, transparent 70%); }
+.shop-card.rarity-legendary .shop-preview { background: radial-gradient(160px 110px at 50% 70%, #fff1cf, transparent 70%); }
+.shop-card.rarity-mythic .shop-preview { background: radial-gradient(160px 110px at 50% 70%, #ffe1e8, transparent 70%); }
+.shop-info { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 14px; flex: 1; }
+.shop-info p { line-height: 1.35; }
+.shop-buy { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line-2); background: #fbfaf7; }
+.shop-price { display: inline-flex; align-items: center; gap: 6px; }
+.shop-price s { color: var(--muted); font-size: 12px; }
+.shop-owned { display: inline-flex; align-items: center; gap: 4px; color: var(--green); font-weight: 700; font-size: 13px; }
+.shop-sale { position: absolute; top: 10px; right: 10px; z-index: 1; background: var(--crimson); color: #fff; font-weight: 800; font-size: 12px; padding: 2px 8px; border-radius: 99px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 5px 12px; font-size: 13px; }
+.chip.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+.tips { display: flex; align-items: center; gap: 16px; padding: 18px 20px; border-radius: 14px; border: 1px dashed #e3b9c0; background: #fff7f8; }
+.tips-icon { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: #fde3e7; color: var(--crimson); flex-shrink: 0; }
+.tips > div:nth-child(2) { flex: 1; }
+.shop-foot { text-align: center; }
+.reward-coins strong { color: #8a6417; }
+@media (max-width: 700px) { .shop { padding: 16px; } .tips { flex-direction: column; align-items: flex-start; } }

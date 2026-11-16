@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { ACHIEVEMENTS, newAchievements, type AchievementContext } from '@inbox/shared';
+import { ACHIEVEMENTS, COINS_PER_ACHIEVEMENT, coinsForResult, newAchievements, type AchievementContext } from '@inbox/shared';
 import { prisma } from '../src/lib/db';
 import { createMatch, finalizeMatch } from '../src/lib/matches';
 
@@ -45,6 +45,7 @@ describe('granting', () => {
     const a1 = first.participants.find((p) => p.user.id === ana.id)!;
     expect(a1.achievements.sort()).toEqual(['best_friend', 'first_match', 'first_win', 'flawless'].sort());
     expect(first.participants.find((p) => p.user.id === beto.id)!.achievements).toEqual(['first_match']);
+    expect(a1.coinsGained).toBe(coinsForResult('win', 12) + 4 * COINS_PER_ACHIEVEMENT);
 
     const second = await play(ana.id, beto.id, 8, 3);
     expect(second.participants.find((p) => p.user.id === ana.id)!.achievements).toEqual([]);

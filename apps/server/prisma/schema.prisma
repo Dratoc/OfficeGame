@@ -28,6 +28,7 @@ model User {
   friendsOut    Friendship[]       @relation("FriendRequester")
   friendsIn     Friendship[]       @relation("FriendAddressee")
   achievements  Achievement[]
+  purchases     Purchase[]
 }
 
 model Session {
@@ -49,6 +50,8 @@ model PlayerStats {
   wins   Int    @default(0)
   losses Int    @default(0)
   draws  Int    @default(0)
+  /// Doubloons, the in-game coin. Earned by playing, spent on cosmetics.
+  coins  Int    @default(150)
 
   @@index([rating])
 }
@@ -164,6 +167,7 @@ model MatchParticipant {
   unlocked     String[]
   /// Achievements earned in this match.
   achievements String[]
+  coinsGained  Int     @default(0)
 
   @@id([matchId, userId])
   @@index([userId])
@@ -193,4 +197,16 @@ model Achievement {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, achievementId])
+}
+
+/// Every shop purchase, kept for support and auditing.
+model Purchase {
+  id        String   @id @default(cuid())
+  userId    String
+  itemId    String
+  price     Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
