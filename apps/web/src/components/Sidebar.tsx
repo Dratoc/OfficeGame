@@ -1,0 +1,51 @@
+import { CalendarDays, Inbox, PenSquare, Send, Shield, Swords, Trophy, UserRound } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { useApp, type Folder, type View } from '../lib/store';
+
+function Item({ icon, label, active, count, onClick, badge }: { icon: ReactNode; label: string; active: boolean; count?: number; onClick: () => void; badge?: string }) {
+  return (
+    <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}>
+      {icon}
+      <span>{label}</span>
+      {badge && <span className="pill">{badge}</span>}
+      {!!count && <span className="nav-count">{count}</span>}
+    </button>
+  );
+}
+
+export function Sidebar() {
+  const { view, go, unread, openCompose, me } = useApp();
+  const folder = view.kind === 'mail' ? view.folder : null;
+  const toFolder = (f: Folder) => go({ kind: 'mail', folder: f, mailId: null });
+  const is = (k: View['kind']) => view.kind === k;
+
+  return (
+    <nav className="sidebar">
+      <button className="btn btn-primary compose-btn" onClick={() => openCompose()}>
+        <PenSquare size={18} /> Nuevo desafío
+      </button>
+
+      <div className="nav-group">
+        <div className="nav-title">Correo</div>
+        <Item icon={<Inbox size={18} />} label="Bandeja de entrada" active={folder === 'inbox'} count={unread} onClick={() => toFolder('inbox')} />
+        <Item icon={<Swords size={18} />} label="Desafíos" active={folder === 'challenges'} onClick={() => toFolder('challenges')} />
+        <Item icon={<Send size={18} />} label="Enviados" active={folder === 'sent'} onClick={() => toFolder('sent')} />
+      </div>
+
+      <div className="nav-group">
+        <div className="nav-title">Arena</div>
+        <Item icon={<Trophy size={18} />} label="Ranking" active={is('ranking')} onClick={() => go({ kind: 'ranking' })} />
+        <Item icon={<Shield size={18} />} label="Armería" active={is('armory')} onClick={() => go({ kind: 'armory' })} />
+        <Item icon={<UserRound size={18} />} label="Mi perfil" active={is('profile') && (view as { username: string }).username === me?.username} onClick={() => go({ kind: 'profile', username: me!.username })} />
+        <Item icon={<CalendarDays size={18} />} label="Calendario" active={is('calendar')} badge="Pronto" onClick={() => go({ kind: 'calendar' })} />
+      </div>
+
+      <div className="sidebar-foot">
+        <div className="tip">
+          <strong>Consejo del gremio</strong>
+          <p>Las batallas duran 10 segundos. Perfecto entre reunión y reunión.</p>
+        </div>
+      </div>
+    </nav>
+  );
+}

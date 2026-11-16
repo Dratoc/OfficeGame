@@ -1,0 +1,24 @@
+{
+  "name": "inbox-arena",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c blue,magenta \"npm run dev -w @inbox/server\" \"npm run dev -w @inbox/web\"",
+    "build": "npm run build -w @inbox/web",
+    "start": "npm run start -w @inbox/server",
+    "db:migrate": "npm run db:migrate -w @inbox/server",
+    "db:deploy": "npm run db:deploy -w @inbox/server",
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/shared && tsc -p apps/server && tsc -p apps/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "5.9.3",
+    "vitest": "^5.1.0"
+  }
+}

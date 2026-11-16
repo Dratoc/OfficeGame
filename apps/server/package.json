@@ -1,0 +1,30 @@
+{
+  "name": "@inbox/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "start": "tsx src/index.ts",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/rate-limit": "^11.2.2",
+    "@fastify/static": "^10.1.11",
+    "@inbox/shared": "0.1.0",
+    "@node-rs/argon2": "2.0.2",
+    "@prisma/client": "6.19.3",
+    "fastify": "^5.12.8",
+    "prisma": "6.19.3",
+    "socket.io": "4.8.1",
+    "tsx": "4.20.6",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "socket.io-client": "4.8.1"
+  }
+}

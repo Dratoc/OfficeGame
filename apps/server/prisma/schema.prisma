@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  title        String   @default("Empleado del mes (pendiente)")
+  createdAt    DateTime @default(now())
+
+  sessions      Session[]
+  stats         PlayerStats?
+  avatar        Avatar?
+  inventory     Inventory[]
+  mailsReceived Mail[]             @relation("MailTo")
+  mailsSent     Mail[]             @relation("MailFrom")
+  challengesOut Challenge[]        @relation("Challenger")
+  challengesIn  Challenge[]        @relation("Opponent")
+  participations MatchParticipant[]
+  matchesWon    Match[]            @relation("Winner")
+}
+
+model Session {
+  id        String   @id // sha256 of the cookie token
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([userId])
+}
+
+model PlayerStats {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level  Int    @default(1)
+  xp     Int    @default(0)
+  rating Int    @default(1000)
+  wins   Int    @default(0)
+  losses Int    @default(0)
+  draws  Int    @default(0)
+
+  @@index([rating])
+}
+
+/// Catalog lives in code (packages/shared) and is mirrored here for joins and the future shop.
+model Item {
+  id          String  @id
+  slot        String
+  name        String
+  rarity      String
+  unlockType  String
+  unlockLevel Int
+  purchasable Boolean @default(false)
+
+  owners Inventory[]
+}
+
+model Inventory {
+  userId     String
+  itemId     String
+  /// starter | level | achievement | purchase
+  source     String
+  acquiredAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item       Item     @relation(fields: [itemId], references: [id])
+
+  @@id([userId, itemId])
+}
+
+model Avatar {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// AvatarConfig from packages/shared: { skin, hairColor, equipped: { slot: itemId } }
+  config    Json
+  updatedAt DateTime @updatedAt
+}
+
+model Mail {
+  id          String     @id @default(cuid())
+  fromUserId  String?
+  from        User?      @relation("MailFrom", fields: [fromUserId], references: [id], onDelete: SetNull)
+  toUserId    String
+  to          User       @relation("MailTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  /// system | challenge | result | social
+  kind        String
+  subject     String
+  body        String
+  challengeId String?
+  challenge   Challenge? @relation(fields: [challengeId], references: [id])
+  matchId     String?
+  readAt      DateTime?
+  createdAt   DateTime   @default(now())
+
+  @@index([toUserId, createdAt])
+  @@index([fromUserId, createdAt])
+}
+
+model Challenge {
+  id           String   @id @default(cuid())
+  mode         String
+  challengerId String
+  challenger   User     @relation("Challenger", fields: [challengerId], references: [id], onDelete: Cascade)
+  opponentId   String
+  opponent     User     @relation("Opponent", fields: [opponentId], references: [id], onDelete: Cascade)
+  /// pending | accepted | declined | expired | cancelled
+  status       String   @default("pending")
+  message      String   @default("")
+  expiresAt    DateTime
+  matchId      String?  @unique
+  match        Match?   @relation(fields: [matchId], references: [id])
+  createdAt    DateTime @default(now())
+  mails        Mail[]
+
+  @@index([opponentId, status])
+}
+
+model Match {
+  id        String    @id @default(cuid())
+  mode      String
+  /// waiting | countdown | playing | finished | cancelled
+  status    String    @default("waiting")
+  seed      Int?
+  /// The exact words played, kept for auditing.
+  words     String[]
+  startedAt DateTime?
+  endedAt   DateTime?
+  winnerId  String?
+  winner    User?     @relation("Winner", fields: [winnerId], references: [id])
+  createdAt DateTime  @default(now())
+
+  participants MatchParticipant[]
+  challenge    Challenge?
+}
+
+model MatchParticipant {
+  matchId      String
+  userId       String
+  match        Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  correctWords Int     @default(0)
+  errors       Int     @default(0)
+  correctChars Int     @default(0)
+  wpm          Int     @default(0)
+  accuracy     Int     @default(0)
+  ratingBefore Int?
+  ratingAfter  Int?
+  levelBefore  Int?
+  levelAfter   Int?
+  xpGained     Int     @default(0)
+  /// win | loss | draw | abandon (null while playing)
+  result       String?
+  unlocked     String[]
+
+  @@id([matchId, userId])
+  @@index([userId])
+}

@@ -1,0 +1,106 @@
+/* Avatar poses and item animations. Groups are named in Avatar.tsx. */
+.avatar { overflow: visible; display: block; }
+.avatar.crop-bust { overflow: hidden; }
+.avatar g { transform-box: fill-box; }
+
+.av-root { transform-origin: 50% 100%; }
+.av-body { transform-origin: 50% 100%; }
+.av-head { transform-origin: 50% 90%; }
+.av-arm-l { transform-origin: 70% 5%; }
+.av-arm-r { transform-origin: 30% 5%; }
+.av-leg { transform-origin: 50% 0%; }
+
+/* idle: breathing + blinking */
+.pose-idle .av-body, .pose-wave .av-body { animation: breathe 3.2s ease-in-out infinite; }
+.pose-idle .av-head { animation: head-bob 3.2s ease-in-out infinite; }
+.blink { transform-box: fill-box; transform-origin: center; animation: blink 4.6s infinite; }
+
+/* wave */
+.pose-wave .av-arm-r { animation: wave 1.1s ease-in-out infinite; }
+
+/* run */
+.pose-run .av-body { animation: run-bounce 0.36s ease-in-out infinite; }
+.pose-run .av-leg-l { animation: leg 0.36s ease-in-out infinite; }
+.pose-run .av-leg-r { animation: leg 0.36s ease-in-out infinite reverse; }
+.pose-run .av-arm-l { animation: arm-swing 0.36s ease-in-out infinite; }
+.pose-run .av-arm-r { animation: arm-swing 0.36s ease-in-out infinite reverse; }
+
+/* win: jump with arms up */
+.pose-win .av-root { animation: jump 0.9s cubic-bezier(.3,.7,.4,1) infinite; }
+.pose-win .av-arm-l { transform: rotate(150deg); }
+.pose-win .av-arm-r { transform: rotate(-150deg); }
+.pose-win .av-shadow { animation: shadow 0.9s cubic-bezier(.3,.7,.4,1) infinite; transform-box: fill-box; transform-origin: center; }
+
+/* lose: slump */
+.pose-lose .av-body { transform: translateY(4px); filter: saturate(.75); }
+.pose-lose .av-head { transform: rotate(-8deg) translateY(4px); }
+.pose-lose .av-arm-l { transform: rotate(8deg); }
+.pose-lose .av-arm-r { transform: rotate(-8deg); }
+.av-cloud { animation: cloud 2.6s ease-in-out infinite; }
+.av-rain line { animation: rain .8s linear infinite; }
+.av-rain line:nth-child(2) { animation-delay: .25s; }
+.av-rain line:nth-child(3) { animation-delay: .5s; }
+
+/* wings, cape, effects */
+.wing { transform-origin: 100% 60%; }
+.wing-r { transform-origin: 0% 60%; }
+.wing-l { animation: flap-l 1.6s ease-in-out infinite; }
+.wing-r { animation: flap-r 1.6s ease-in-out infinite; }
+.pose-win .wing-l, .pose-win .wing-r { animation-duration: .45s; }
+.av-cape { transform-origin: 50% 0%; animation: cape 2.4s ease-in-out infinite; }
+.pose-run .av-cape { animation-duration: .5s; }
+.fx-fire { animation: flicker 1.2s ease-in-out infinite; transform-origin: center; }
+.fx-embers circle { animation: ember 1.8s ease-in infinite; }
+.fx-embers circle:nth-child(2) { animation-delay: .6s; }
+.fx-embers circle:nth-child(3) { animation-delay: 1.1s; }
+.fx-mythic { animation: spin 9s linear infinite; transform-origin: center; }
+.spark { transform-origin: center; animation: twinkle 1.8s ease-in-out infinite; }
+.spark-1 { animation-delay: .4s; } .spark-2 { animation-delay: .8s; } .spark-3 { animation-delay: 1.2s; }
+.spark-11 { animation-delay: .5s; } .spark-12 { animation-delay: 1s; }
+.hair-flame { transform-origin: 50% 100%; animation: flame 0.9s ease-in-out infinite; }
+.eyes-glow ellipse:first-child, .eyes-glow ellipse:nth-child(2) { animation: glow 1.6s ease-in-out infinite; }
+.orb-glow { animation: glow 1.4s ease-in-out infinite; }
+.steam path { animation: steam 2s ease-in-out infinite; }
+.steam path:nth-child(2) { animation-delay: .7s; }
+
+/* pets */
+.av-pet { transform-origin: center; }
+.dragon-pet { animation: hover 2.2s ease-in-out infinite; }
+.dragon-wing { transform-origin: 90% 90%; animation: pet-flap .5s ease-in-out infinite; }
+.dragon-fire { opacity: 0; transform-origin: right center; }
+.pose-win .dragon-fire { animation: puff 1.2s ease-in-out infinite; }
+.pose-win .av-pet { animation: pet-jump .9s ease-in-out infinite; }
+.pose-lose .av-pet { transform: translateY(10px) rotate(8deg); filter: saturate(.6); }
+.cat-tail { transform-origin: 0% 100%; animation: tail 1.8s ease-in-out infinite; }
+.pose-run .av-pet { animation: run-bounce .36s ease-in-out infinite; }
+
+@keyframes breathe { 0%,100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-1.5px) scaleY(1.01); } }
+@keyframes head-bob { 0%,100% { transform: rotate(0); } 50% { transform: rotate(1.5deg); } }
+@keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+@keyframes wave { 0%,100% { transform: rotate(-120deg); } 50% { transform: rotate(-150deg); } }
+@keyframes run-bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes leg { 0%,100% { transform: rotate(18deg); } 50% { transform: rotate(-18deg); } }
+@keyframes arm-swing { 0%,100% { transform: rotate(-22deg); } 50% { transform: rotate(22deg); } }
+@keyframes jump { 0%,100% { transform: translateY(0); } 40% { transform: translateY(-22px); } 60% { transform: translateY(-22px); } }
+@keyframes shadow { 0%,100% { transform: scale(1); opacity: .12; } 50% { transform: scale(.7); opacity: .06; } }
+@keyframes cloud { 0%,100% { transform: translateX(0); } 50% { transform: translateX(4px); } }
+@keyframes rain { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(10px); opacity: 0; } }
+@keyframes flap-l { 0%,100% { transform: rotate(0); } 50% { transform: rotate(14deg); } }
+@keyframes flap-r { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-14deg); } }
+@keyframes cape { 0%,100% { transform: skewX(0); } 50% { transform: skewX(2deg); } }
+@keyframes flicker { 0%,100% { opacity: .9; transform: scale(1); } 50% { opacity: .65; transform: scale(1.04); } }
+@keyframes ember { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-70px); opacity: 0; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes twinkle { 0%,100% { transform: scale(.4); opacity: .3; } 50% { transform: scale(1.1); opacity: 1; } }
+@keyframes flame { 0%,100% { transform: scaleY(1) skewX(0); } 50% { transform: scaleY(1.06) skewX(-2deg); } }
+@keyframes glow { 0%,100% { opacity: .25; } 50% { opacity: .7; } }
+@keyframes steam { 0% { transform: translateY(0); opacity: .9; } 100% { transform: translateY(-8px); opacity: 0; } }
+@keyframes hover { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+@keyframes pet-flap { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-25deg); } }
+@keyframes puff { 0%, 40% { opacity: 0; transform: scaleX(.3); } 60% { opacity: 1; transform: scaleX(1.2); } 100% { opacity: 0; transform: scaleX(1); } }
+@keyframes pet-jump { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+@keyframes tail { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-14deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .avatar *, .avatar { animation: none !important; }
+}
