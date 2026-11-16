@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Swords } from 'lucide-react';
+import { Check, Clock, Swords, UserPlus } from 'lucide-react';
 import { levelProgress, type ProfileDto } from '@inbox/shared';
 import { Avatar } from '../avatar/Avatar';
 import { Bust, LevelBadge, XpBar, timeAgo } from '../components/Bits';
@@ -9,7 +9,7 @@ import { api, ApiError } from '../lib/api';
 const RESULT_LABEL = { win: 'Victoria', loss: 'Derrota', draw: 'Empate', abandon: 'Abandono' } as const;
 
 export function ProfileView({ username }: { username: string }) {
-  const { me, openCompose, go } = useApp();
+  const { me, openCompose, go, socialVersion, toast, refreshSocial } = useApp();
   const [p, setP] = useState<ProfileDto | null>(null);
   const [error, setError] = useState('');
 
@@ -18,7 +18,7 @@ export function ProfileView({ username }: { username: string }) {
     api<ProfileDto>(`/api/users/${encodeURIComponent(username)}`)
       .then(setP)
       .catch((e) => setError(e instanceof ApiError ? e.message : 'Error'));
-  }, [username, me?.stats.xp]);
+  }, [username, me?.stats.xp, socialVersion]);
 
   if (error) return <div className="page">{error}</div>;
   if (!p) return <div className="page muted">Cargando perfil…</div>;
@@ -33,7 +33,10 @@ export function ProfileView({ username }: { username: string }) {
         </div>
         <div className="profile-info">
           <span className="muted small">{mine ? 'Tu perfil' : 'Perfil de jugador'}</span>
-          <h2>{p.user.username}</h2>
+          <h2>
+            {p.user.username}
+            {!mine && <span className={`presence-pill ${p.online ? 'on' : ''}`}>{p.online ? 'En línea' : 'Desconectado'}</span>}
+          </h2>
           <p className="profile-title">{p.user.title}</p>
           <div className="profile-level">
             <LevelBadge level={p.stats.level} />
@@ -51,9 +54,37 @@ export function ProfileView({ username }: { username: string }) {
                 Editar avatar
               </button>
             ) : (
-              <button className="btn btn-primary" onClick={() => openCompose(p.user.username)}>
-                <Swords size={16} /> Desafiar
-              </button>
+              <>
+                <button className="btn btn-primary" onClick={() => openCompose(p.user.username)}>
+                  <Swords size={16} /> Desafiar
+                </button>
+                {p.friendStatus === 'friends' && (
+                  <span className="muted small inline-icon">
+                    <Check size={14} /> En tus contactos
+                  </span>
+                )}
+                {p.friendStatus === 'outgoing' && (
+                  <span className="muted small inline-icon">
+                    <Clock size={14} /> Solicitud enviada
+                  </span>
+                )}
+                {(p.friendStatus === 'none' || p.friendStatus === 'incoming') && (
+                  <button
+                    className="btn btn-ghost"
+                    onClick={async () => {
+                      try {
+                        await api('/api/friends', { body: { username: p.user.username } });
+                        toast({ title: p.friendStatus === 'incoming' ? `${p.user.username} ahora es tu contacto` : 'Solicitud enviada', tone: 'success' });
+                        await refreshSocial();
+                      } catch (e) {
+                        toast({ title: e instanceof ApiError ? e.message : 'Error', tone: 'error' });
+                      }
+                    }}
+                  >
+                    <UserPlus size={16} /> {p.friendStatus === 'incoming' ? 'Aceptar solicitud' : 'Agregar a contactos'}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

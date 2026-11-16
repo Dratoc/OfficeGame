@@ -12,6 +12,8 @@ import { ArmoryView } from './views/ArmoryView';
 import { RankingView } from './views/RankingView';
 import { ProfileView } from './views/ProfileView';
 import { CalendarView } from './views/CalendarView';
+import { ContactsView } from './views/ContactsView';
+import { QuickMatch } from './components/QuickMatch';
 import { useApp } from './lib/store';
 import { getSocket } from './lib/socket';
 
@@ -39,11 +41,29 @@ function useRealtime(enabled: boolean) {
     const onError = (err: Error) => {
       if (err.message === 'unauthorized') void useApp.getState().refreshMe();
     };
+    const onQueue = (q: { searching: boolean; since: number | null }) => useApp.setState({ queue: q });
+    const onMatched = ({ matchId, opponent }: { matchId: string; opponent: { username: string } }) => {
+      const st = useApp.getState();
+      useApp.setState({ queue: { searching: false, since: null } });
+      st.toast({ title: '¡Rival encontrado!', body: `Te enfrentas a ${opponent.username}.`, tone: 'success' });
+      st.go({ kind: 'battle', matchId });
+    };
+    const onSocial = () => void useApp.getState().refreshSocial();
+    const onPresence = () => useApp.setState((st) => ({ socialVersion: st.socialVersion + 1 }));
+    s.on('queue:status', onQueue);
+    s.on('queue:matched', onMatched);
+    s.on('friends:changed', onSocial);
+    s.on('presence:update', onPresence);
+    void useApp.getState().refreshSocial();
     s.on('mail:new', onMail);
     s.on('challenge:accepted', onAccepted);
     s.on('connect_error', onError);
     if (s.disconnected) s.connect();
     return () => {
+      s.off('queue:status', onQueue);
+      s.off('queue:matched', onMatched);
+      s.off('friends:changed', onSocial);
+      s.off('presence:update', onPresence);
       s.off('mail:new', onMail);
       s.off('challenge:accepted', onAccepted);
       s.off('connect_error', onError);
@@ -80,8 +100,10 @@ export function App() {
         {view.kind === 'ranking' && <RankingView />}
         {view.kind === 'profile' && <ProfileView key={view.username} username={view.username} />}
         {view.kind === 'calendar' && <CalendarView />}
+        {view.kind === 'contacts' && <ContactsView />}
       </main>
       <ComposeDialog />
+      <QuickMatch />
       <Toasts />
     </div>
   );

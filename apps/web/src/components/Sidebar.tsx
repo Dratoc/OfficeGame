@@ -1,4 +1,5 @@
-import { CalendarDays, Inbox, PenSquare, Send, Shield, Swords, Trophy, UserRound } from 'lucide-react';
+import { CalendarDays, Inbox, PenSquare, Send, Shield, Swords, Trophy, UserRound, Users, Zap } from 'lucide-react';
+import { startQuickMatch } from './QuickMatch';
 import type { ReactNode } from 'react';
 import { useApp, type Folder, type View } from '../lib/store';
 
@@ -14,7 +15,7 @@ function Item({ icon, label, active, count, onClick, badge }: { icon: ReactNode;
 }
 
 export function Sidebar() {
-  const { view, go, unread, openCompose, me } = useApp();
+  const { view, go, unread, openCompose, me, queue, friendRequests } = useApp();
   const folder = view.kind === 'mail' ? view.folder : null;
   const toFolder = (f: Folder) => go({ kind: 'mail', folder: f, mailId: null });
   const is = (k: View['kind']) => view.kind === k;
@@ -23,6 +24,9 @@ export function Sidebar() {
     <nav className="sidebar">
       <button className="btn btn-primary compose-btn" onClick={() => openCompose()}>
         <PenSquare size={18} /> Nuevo desafío
+      </button>
+      <button className="btn btn-ghost quick-btn" disabled={queue.searching} onClick={startQuickMatch}>
+        <Zap size={16} /> {queue.searching ? 'Buscando…' : 'Partida rápida'}
       </button>
 
       <div className="nav-group">
@@ -34,6 +38,7 @@ export function Sidebar() {
 
       <div className="nav-group">
         <div className="nav-title">Arena</div>
+ <Item icon={<Users size={18} />} label="Contactos" active={is('contacts')} count={friendRequests} onClick={() => go({ kind: 'contacts' })} />
         <Item icon={<Trophy size={18} />} label="Ranking" active={is('ranking')} onClick={() => go({ kind: 'ranking' })} />
         <Item icon={<Shield size={18} />} label="Armería" active={is('armory')} onClick={() => go({ kind: 'armory' })} />
         <Item icon={<UserRound size={18} />} label="Mi perfil" active={is('profile') && (view as { username: string }).username === me?.username} onClick={() => go({ kind: 'profile', username: me!.username })} />
