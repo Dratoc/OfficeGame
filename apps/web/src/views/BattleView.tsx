@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Wifi, WifiOff } from 'lucide-react';
-import { GAME_MODES, RACE_LENGTH, type GameModeId, type MatchGoEvent, type MatchSummaryDto, type RoomStateEvent, type WordResultEvent } from '@inbox/shared';
+import { FINISH_LINE, GAME_MODES, RACE_LENGTH, PUZZLE_GOAL, type GameModeId, type MatchGoEvent, type MatchSummaryDto, type RoomStateEvent, type WordResultEvent } from '@inbox/shared';
 import { Avatar } from '../avatar/Avatar';
 import { getSocket, serverNow, syncClock } from '../lib/socket';
 import { useApp } from '../lib/store';
@@ -16,6 +16,7 @@ const HOW_TO: Record<string, string> = {
   keys: 'Presiona la combinación que aparece (en Mac, ⌘ cuenta como Ctrl) o teclea los símbolos.',
   task: 'Elige la opción correcta de cada paso con el mouse o con las teclas 1, 2 y 3.',
   racing: `Escribe cada palabra y pulsa espacio. Gana quien llegue primero a ${RACE_LENGTH} palabras.`,
+  puzzle: `Completa series, encuentra al intruso, ordena letras y sigue patrones. Gana quien resuelva ${PUZZLE_GOAL} primero (opciones con el mouse o con 1, 2, 3 y 4).`,
 };
 
 export function BattleView({ matchId }: { matchId: string }) {
@@ -133,9 +134,11 @@ export function BattleView({ matchId }: { matchId: string }) {
   const info = GAME_MODES[mode];
   const meP = room?.players.find((p) => p.user.id === me?.id);
   const opp = room?.players.find((p) => p.user.id !== me?.id);
-  const race = mode === 'racing';
+  const goal = FINISH_LINE[mode] ?? null;
   // Me first, then everyone else in join order.
   const everyone = room ? [...(meP ? [meP] : []), ...room.players.filter((p) => p !== meP)] : [];
+  // Races always use the track; other modes use it only for groups of 3 or 4.
+  const track = goal !== null && (mode === 'racing' || everyone.length > 2);
   const phase = room?.phase ?? 'waiting';
   const playing = !!game && now >= game.startAt && now < game.endAt;
   const over = !!game && now >= game.endAt;
@@ -157,8 +160,8 @@ export function BattleView({ matchId }: { matchId: string }) {
         <div className="battle-title">
           <span className="battle-kicker">{info.name}</span>
           <strong>
-            {race && everyone.length > 2 ? (
-              `Carrera de ${everyone.length} corredores`
+            {everyone.length > 2 ? (
+              `${mode === 'racing' ? 'Carrera' : 'Partida'} de ${everyone.length} jugadores`
             ) : (
               <>
                 {meP?.user.username ?? '…'} <span className="vs">VS</span> {opp?.user.username ?? '…'}
@@ -214,8 +217,8 @@ export function BattleView({ matchId }: { matchId: string }) {
             <span>{(remaining / 1000).toFixed(1)} s</span>
           </div>
 
-          {race ? (
-            <RaceTrack runners={everyone.map((p) => ({ user: p.user, ...score(p) }))} meId={meP.user.id} effects={effects} now={now} finished={over || phase === 'finished'} />
+          {track ? (
+            <RaceTrack runners={everyone.map((p) => ({ user: p.user, ...score(p) }))} meId={meP.user.id} effects={effects} now={now} finished={over || phase === 'finished'} goal={goal!} unit={info.unit} />
           ) : (
             <DuelStage
               me={{ user: meP.user, ...score(meP) }}
@@ -235,7 +238,7 @@ export function BattleView({ matchId }: { matchId: string }) {
             )}
           </AnimatePresence>
 
-          {race && score(meP).correctWords >= RACE_LENGTH ? (
+          {goal !== null && score(meP).correctWords >= goal ? (
             <div className="race-done">
               <strong>¡Llegaste a la meta!</strong>
               <span className="muted">Espera a que lleguen los demás o a que se acabe el tiempo.</span>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Crown, RotateCcw, Sparkles } from 'lucide-react';
-import { ACHIEVEMENTS_BY_ID, GAME_MODES, ITEMS_BY_ID, type MatchSummaryDto, type ParticipantResultDto } from '@inbox/shared';
+import { ACHIEVEMENTS_BY_ID, GAME_MODES, ITEMS_BY_ID, type PlayableModeId, type MatchSummaryDto, type ParticipantResultDto } from '@inbox/shared';
 import { Avatar } from '../avatar/Avatar';
 import { RarityBadge } from '../components/Bits';
 import { useApp } from '../lib/store';
@@ -88,8 +88,10 @@ export function ResultScene({ summary }: { summary: MatchSummaryDto }) {
           ? mine.result === 'abandon'
             ? 'Te desconectaste demasiado tiempo.'
             : won
-              ? `Llegaste primero entre ${summary.participants.length} corredores. ¡Nadie escribe más rápido en este piso!`
-              : `Llegaste en el ${mine.placement}.º lugar de ${summary.participants.length}. ${byPlace[0]!.user.username} se llevó la carrera.`
+              ? summary.mode === 'racing'
+                ? `Llegaste primero entre ${summary.participants.length} corredores. ¡Nadie escribe más rápido en este piso!`
+                : `Primer lugar entre ${summary.participants.length} jugadores. El consejo real te nombra estratega.`
+              : `Llegaste en el ${mine.placement}.º lugar de ${summary.participants.length}. ${byPlace[0]!.user.username} se llevó ${summary.mode === 'racing' ? 'la carrera' : 'la partida'}.`
           : won
           ? `Derrotaste a ${other?.user.username ?? 'tu rival'}. El Departamento de Duelos toma nota.`
           : draw
@@ -216,8 +218,8 @@ export function ResultScene({ summary }: { summary: MatchSummaryDto }) {
 
       <div className="result-actions">
         {race && (
-          <button className="btn btn-primary" onClick={() => startQuickMatch('racing')}>
-            <RotateCcw size={16} /> Otra carrera
+          <button className="btn btn-primary" onClick={() => startQuickMatch(summary.mode as PlayableModeId)}>
+            <RotateCcw size={16} /> {summary.mode === 'racing' ? 'Otra carrera' : 'Otra partida'}
           </button>
         )}
         {other && !race && (

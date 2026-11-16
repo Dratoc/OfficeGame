@@ -7,7 +7,7 @@ import type { PlayableModeId } from './modes';
  * the answers; clients only receive the prompts.
  */
 export interface Prompt {
-  kind: 'word' | 'math' | 'combo' | 'symbols' | 'choice';
+  kind: 'word' | 'math' | 'combo' | 'symbols' | 'choice' | 'puzzle';
   text: string;
   /** For 'combo': the keys to show as keycaps. */
   keys?: string[];
@@ -16,6 +16,9 @@ export interface Prompt {
   step?: number;
   steps?: number;
   choices?: { id: string; label: string }[];
+  /** For 'puzzle': what kind of answer it takes, and the instruction shown above it. */
+  input?: 'number' | 'text' | 'choice';
+  label?: string;
 }
 
 export interface PromptSet {
@@ -187,6 +190,86 @@ function taskPrompts(rand: () => number, minSteps: number): PromptSet {
   return { prompts, answers };
 }
 
+/* ---------------- Puzzle Battle ---------------- */
+
+function seriesPuzzle(rand: () => number): [Prompt, string] {
+  const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
+  const kind = int(0, 5);
+  let terms: number[];
+  if (kind === 0) {
+    const a = int(1, 20), d = int(2, 9);
+    terms = [0, 1, 2, 3, 4].map((i) => a + d * i);
+  } else if (kind === 1) {
+    const a = int(1, 5), r = int(2, 3);
+    terms = [0, 1, 2, 3, 4].map((i) => a * r ** i);
+  } else if (kind === 2) {
+    const n = int(1, 6);
+    terms = [0, 1, 2, 3, 4].map((i) => (n + i) ** 2);
+  } else if (kind === 3) {
+    const a = int(1, 10), x = int(1, 5), y = int(6, 12);
+    terms = [a];
+    for (let i = 1; i < 6; i++) terms.push(terms[i - 1]! + (i % 2 ? x : y));
+  } else if (kind === 4) {
+    terms = [int(1, 4), int(1, 5)];
+    while (terms.length < 6) terms.push(terms[terms.length - 1]! + terms[terms.length - 2]!);
+  } else {
+    const a = int(60, 99), d = int(3, 9);
+    terms = [0, 1, 2, 3, 4].map((i) => a - d * i);
+  }
+  const answer = terms.pop()!;
+  return [{ kind: 'puzzle', input: 'number', label: 'Completa la serie', text: `${terms.join(', ')}, ?` }, String(answer)];
+}
+
+const GROUPS: Record<string, string[]> = {
+  oficina: ['grapadora', 'teclado', 'monitor', 'carpeta', 'impresora', 'clip', 'agenda', 'escritorio'],
+  medieval: ['espada', 'escudo', 'castillo', 'dragón', 'armadura', 'lanza', 'catapulta', 'corona'],
+  comida: ['manzana', 'pan', 'queso', 'café', 'galleta', 'sopa', 'tortilla', 'pera'],
+  animales: ['gato', 'caballo', 'búho', 'lobo', 'zorro', 'ciervo', 'oso', 'cuervo'],
+  colores: ['rojo', 'azul', 'verde', 'amarillo', 'morado', 'naranja', 'gris', 'blanco'],
+};
+
+function oddOnePuzzle(rand: () => number): [Prompt, string] {
+  const [inGroup, outGroup] = shuffle(rand, Object.keys(GROUPS));
+  const three = shuffle(rand, GROUPS[inGroup!]!).slice(0, 3);
+  const intruder = pick(rand, GROUPS[outGroup!]!);
+  const choices = shuffle(rand, [...three, intruder]).map((label, k) => ({ id: String.fromCharCode(97 + k), label }));
+  return [{ kind: 'puzzle', input: 'choice', label: '¿Cuál no pertenece al grupo?', text: 'Encuentra al intruso', choices }, choices.find((c) => c.label === intruder)!.id];
+}
+
+/** Accent-free words, so anagrams are typed without fighting the keyboard. */
+const ANAGRAM_WORDS = ['teclado', 'oficina', 'correo', 'informe', 'castillo', 'espada', 'escudo', 'corona', 'agenda', 'carpeta', 'monitor', 'cliente', 'tarea', 'gremio', 'caballero', 'armadura', 'pasante', 'tablero', 'archivo', 'mensaje', 'planilla', 'reino', 'torre', 'bandeja'];
+
+function anagramPuzzle(rand: () => number): [Prompt, string] {
+  const word = pick(rand, ANAGRAM_WORDS);
+  let scrambled = word;
+  for (let tries = 0; scrambled === word && tries < 10; tries++) scrambled = shuffle(rand, word.split('')).join('');
+  return [{ kind: 'puzzle', input: 'text', label: 'Ordena las letras', text: scrambled.toUpperCase() }, word];
+}
+
+const SHAPES = ['▲', '●', '■', '◆', '★'];
+
+function patternPuzzle(rand: () => number): [Prompt, string] {
+  const cycle = shuffle(rand, SHAPES).slice(0, 2 + Math.floor(rand() * 2));
+  const shown = 5 + Math.floor(rand() * 2);
+  const seq = Array.from({ length: shown }, (_, i) => cycle[i % cycle.length]!);
+  const next = cycle[shown % cycle.length]!;
+  const others = shuffle(rand, SHAPES.filter((x) => x !== next)).slice(0, 2);
+  const choices = shuffle(rand, [next, ...others]).map((label, k) => ({ id: String.fromCharCode(97 + k), label }));
+  return [{ kind: 'puzzle', input: 'choice', label: '¿Qué sigue?', text: `${seq.join(' ')} ?`, choices }, choices.find((c) => c.label === next)!.id];
+}
+
+function puzzlePrompts(rand: () => number, count: number): PromptSet {
+  const prompts: Prompt[] = [];
+  const answers: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const r = rand();
+    const [p, a] = r < 0.35 ? seriesPuzzle(rand) : r < 0.6 ? oddOnePuzzle(rand) : r < 0.8 ? anagramPuzzle(rand) : patternPuzzle(rand);
+    prompts.push(p);
+    answers.push(a);
+  }
+  return { prompts, answers };
+}
+
 export function generatePrompts(mode: PlayableModeId, seed: number): PromptSet {
   const rand = mulberry32(seed ^ 0x5eed);
   switch (mode) {
@@ -196,6 +279,8 @@ export function generatePrompts(mode: PlayableModeId, seed: number): PromptSet {
       return keysPrompts(rand, 80);
     case 'task':
       return taskPrompts(rand, 60);
+    case 'puzzle':
+      return puzzlePrompts(rand, 60);
     default: {
       const words = generateWords(seed, 80);
       return { prompts: words.map((w) => ({ kind: 'word', text: w })), answers: words };
