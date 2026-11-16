@@ -1,23 +1,25 @@
 import { z } from 'zod';
 import { MAX_WORD_LENGTH } from './typing';
+import { PLAYABLE_MODES, type GameModeId, type PlayableModeId } from './modes';
+import type { Prompt } from './prompts';
 import type { MailDto, MatchSummaryDto, PublicUser } from './api';
 
 /** Socket.IO protocol. Every client → server payload is validated with these schemas. */
 
 export const roomJoinSchema = z.object({ matchId: z.string().min(1).max(40) });
 export const roomReadySchema = z.object({ matchId: z.string().min(1).max(40) });
-export const typingWordSchema = z.object({
+export const answerSchema = z.object({
   matchId: z.string().min(1).max(40),
   index: z.number().int().min(0).max(10_000),
-  word: z.string().max(MAX_WORD_LENGTH),
+  answer: z.string().max(MAX_WORD_LENGTH),
   /** Client estimate, in server time, of when the word was finished. */
   typedAt: z.number().finite(),
 });
-export const queueJoinSchema = z.object({ mode: z.enum(['typing']) });
+export const queueJoinSchema = z.object({ mode: z.enum(PLAYABLE_MODES) });
 export const timePingSchema = z.object({ t0: z.number().finite() });
 
 export type RoomJoin = z.infer<typeof roomJoinSchema>;
-export type TypingWord = z.infer<typeof typingWordSchema>;
+export type Answer = z.infer<typeof answerSchema>;
 
 export interface RoomPlayerState {
   user: PublicUser;
@@ -30,6 +32,7 @@ export interface RoomPlayerState {
 
 export interface RoomStateEvent {
   matchId: string;
+  mode: GameModeId;
   phase: 'waiting' | 'countdown' | 'playing' | 'finished' | 'cancelled';
   players: RoomPlayerState[];
   startAt: number | null;
@@ -39,7 +42,8 @@ export interface RoomStateEvent {
 
 export interface MatchGoEvent {
   matchId: string;
-  words: string[];
+  mode: GameModeId;
+  prompts: Prompt[];
   startAt: number;
   endAt: number;
 }
@@ -74,7 +78,7 @@ export interface ClientToServerEvents {
   'room:join': (data: RoomJoin, ack: (res: { ok: boolean; error?: string }) => void) => void;
   'room:leave': (data: RoomJoin) => void;
   'room:ready': (data: RoomJoin) => void;
-  'typing:word': (data: TypingWord) => void;
-  'queue:join': (data: { mode: 'typing' }) => void;
+  'match:answer': (data: Answer) => void;
+  'queue:join': (data: { mode: PlayableModeId }) => void;
   'queue:leave': () => void;
 }

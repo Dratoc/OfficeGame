@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { GAME_MODES } from '@inbox/shared';
+import { GAME_MODES, type GameModeId } from '@inbox/shared';
 import { prisma } from '../lib/db';
 import { requireUser } from '../lib/auth';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
@@ -12,7 +12,7 @@ const CHALLENGE_TTL_MS = 24 * 3600_000;
 
 const createSchema = z.object({
   opponent: z.string().trim().min(1, 'Escribe a quién quieres desafiar').max(40),
-  mode: z.enum(['typing', 'racing', 'puzzle', 'office']).default('typing'),
+  mode: z.enum(['typing', 'math', 'keys', 'task', 'racing', 'puzzle', 'office']).default('typing'),
   subject: z.string().trim().max(120).optional(),
   message: z.string().trim().max(1000).default(''),
 });
@@ -62,7 +62,7 @@ export async function challengeRoutes(app: FastifyInstance) {
       // Guards against a double click or two tabs accepting at once.
       const claimed = await tx.challenge.updateMany({ where: { id, status: 'pending' }, data: { status: 'accepted' } });
       if (claimed.count === 0) throw conflict('Este desafío ya no está disponible');
-      const matchId = await createMatch(challenge.mode as 'typing', [challenge.challengerId, challenge.opponentId], tx);
+      const matchId = await createMatch(challenge.mode as GameModeId, [challenge.challengerId, challenge.opponentId], tx);
       await tx.challenge.update({ where: { id }, data: { matchId } });
       return matchId;
     });
@@ -71,7 +71,7 @@ export async function challengeRoutes(app: FastifyInstance) {
       fromUserId: userId,
       toUserId: challenge.challengerId,
       kind: 'challenge',
-      subject: `RE: ${GAME_MODES[challenge.mode as 'typing'].name}: ${challenge.opponent.username} aceptó`,
+      subject: `RE: ${GAME_MODES[challenge.mode as GameModeId].name}: ${challenge.opponent.username} aceptó`,
       body: `${challenge.opponent.username} aceptó tu desafío. La sala de batalla está abierta.\n\nEntra cuando quieras: la partida empieza cuando los dos estén listos.`,
       challengeId: id,
       matchId,

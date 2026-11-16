@@ -41,7 +41,7 @@ function useRealtime(enabled: boolean) {
     const onError = (err: Error) => {
       if (err.message === 'unauthorized') void useApp.getState().refreshMe();
     };
-    const onQueue = (q: { searching: boolean; since: number | null }) => useApp.setState({ queue: q });
+    const onQueue = (q: { searching: boolean; since: number | null }) => useApp.setState((st) => ({ queue: { ...q, mode: st.queue.mode } }));
     const onMatched = ({ matchId, opponent }: { matchId: string; opponent: { username: string } }) => {
       const st = useApp.getState();
       useApp.setState({ queue: { searching: false, since: null } });

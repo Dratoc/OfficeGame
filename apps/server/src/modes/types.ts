@@ -1,4 +1,4 @@
-import type { GameModeId } from '@inbox/shared';
+import type { GameModeId, Prompt } from '@inbox/shared';
 
 export interface ActionContext {
   now: number;
@@ -26,8 +26,8 @@ export interface GameMode<State, Action, ActionResult> {
   minPlayers: number;
   maxPlayers: number;
   createState(seed: number, playerIds: string[]): State;
-  /** What every player receives when the match goes live. */
-  startPayload(state: State): { words: string[] };
+  /** prompts go to every player when the match goes live; answers stay on the server. */
+  startPayload(state: State): { prompts: Prompt[]; answers: string[] };
   applyAction(state: State, userId: string, action: Action, ctx: ActionContext): ActionResult;
   outcome(state: State, userId: string): PlayerOutcome;
   /** Positive if a beats b, negative if b beats a, 0 draw. */

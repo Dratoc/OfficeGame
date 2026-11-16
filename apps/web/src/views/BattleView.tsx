@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Wifi, WifiOff } from 'lucide-react';
-import type { MatchGoEvent, MatchSummaryDto, RoomStateEvent, WordResultEvent } from '@inbox/shared';
+import { GAME_MODES, type GameModeId, type MatchGoEvent, type MatchSummaryDto, type RoomStateEvent, type WordResultEvent } from '@inbox/shared';
 import { Avatar } from '../avatar/Avatar';
 import { getSocket, serverNow, syncClock } from '../lib/socket';
 import { useApp } from '../lib/store';
 import { ResultScene } from './ResultScene';
+import { DuelStage, type DuelEffect } from '../battle/DuelStage';
+import { ModePanel, type Mark } from '../battle/panels';
 
-type WordMark = 'pending' | 'ok' | 'bad' | 'rejected';
+const HOW_TO: Record<string, string> = {
+  typing: 'Escribe cada palabra y pulsa espacio. Pegar texto no está permitido.',
+  math: 'Escribe el resultado y pulsa Enter.',
+  keys: 'Presiona la combinación que aparece (en Mac, ⌘ cuenta como Ctrl) o teclea los símbolos.',
+  task: 'Elige la opción correcta de cada paso con el mouse o con las teclas 1, 2 y 3.',
+};
 
 export function BattleView({ matchId }: { matchId: string }) {
   const { me, go, refreshMe } = useApp();
@@ -16,16 +23,15 @@ export function BattleView({ matchId }: { matchId: string }) {
   const [rtt, setRtt] = useState<number | null>(null);
   const [game, setGame] = useState<MatchGoEvent | null>(null);
   const [summary, setSummary] = useState<MatchSummaryDto | null>(null);
-  const [marks, setMarks] = useState<WordMark[]>([]);
+  const [marks, setMarks] = useState<Mark[]>([]);
   const [progress, setProgress] = useState<Record<string, { correctWords: number; errors: number }>>({});
-  const [buffer, setBuffer] = useState('');
+  const [effects, setEffects] = useState<DuelEffect[]>([]);
   const [now, setNow] = useState(serverNow());
   const indexRef = useRef(0);
   const [, force] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const flushed = useRef(false);
+  const effectId = useRef(0);
 
-  // Join the room, keep in sync with the server.
+  // Join the room and keep in sync with the server.
   useEffect(() => {
     const s = getSocket();
     let alive = true;
@@ -33,16 +39,17 @@ export function BattleView({ matchId }: { matchId: string }) {
     const onGo = (g: MatchGoEvent) => {
       if (g.matchId !== matchId) return;
       setGame(g);
-      setMarks((m) => (m.length ? m : new Array(g.words.length).fill('pending')));
-      setTimeout(() => inputRef.current?.focus(), 30);
+      setMarks((m) => (m.length ? m : new Array(g.prompts.length).fill('pending')));
     };
     const onWord = (w: WordResultEvent) => {
       if (w.matchId !== matchId) return;
       setProgress((p) => ({ ...p, [w.userId]: { correctWords: w.correctWords, errors: w.errors } }));
+      const fx: DuelEffect = { id: effectId.current++, userId: w.userId, kind: !w.accepted ? 'reject' : w.correct ? 'hit' : 'miss', at: serverNow() };
+      setEffects((e) => [...e.filter((x) => serverNow() - x.at < 1500), fx]);
       if (w.userId !== me?.id) return;
       setMarks((m) => {
         const next = [...m];
-        next[w.index] = !w.accepted ? 'rejected' : w.correct ? 'ok' : 'bad';
+        next[w.index] = fx.kind === 'reject' ? 'rejected' : fx.kind === 'hit' ? 'ok' : 'bad';
         return next;
       });
       if (!w.accepted) {
@@ -53,7 +60,7 @@ export function BattleView({ matchId }: { matchId: string }) {
     };
     const onEnd = (sum: MatchSummaryDto) => {
       if (sum.id !== matchId) return;
-      setSummary(sum);
+      setTimeout(() => setSummary(sum), 600);
       void refreshMe();
     };
     s.on('room:state', onState);
@@ -64,7 +71,10 @@ export function BattleView({ matchId }: { matchId: string }) {
     const join = async () => {
       const sync = await syncClock();
       if (alive && sync.rtt !== Infinity) setRtt(Math.round(sync.rtt));
-      const res = await s.timeout(5000).emitWithAck('room:join', { matchId }).catch(() => ({ ok: false, error: 'El servidor no respondió' }));
+      const res = await s
+        .timeout(5000)
+        .emitWithAck('room:join', { matchId })
+        .catch(() => ({ ok: false, error: 'El servidor no respondió' }));
       if (alive && !res.ok) setError(res.error ?? 'No se pudo entrar a la sala');
     };
     void join();
@@ -81,7 +91,7 @@ export function BattleView({ matchId }: { matchId: string }) {
     };
   }, [matchId, me?.id, refreshMe]);
 
-  // Animation clock in server time.
+  // Animation clock, in server time.
   useEffect(() => {
     let raf = 0;
     const tick = () => {
@@ -93,28 +103,16 @@ export function BattleView({ matchId }: { matchId: string }) {
   }, []);
 
   const submit = useCallback(
-    (word: string) => {
-      if (!game || !word.trim()) return;
+    (answer: string) => {
+      if (!game || !answer.trim()) return;
       const index = indexRef.current;
-      if (index >= game.words.length) return;
-      getSocket().emit('typing:word', { matchId, index, word: word.trim(), typedAt: Math.min(serverNow(), game.endAt) });
+      if (index >= game.prompts.length) return;
+      getSocket().emit('match:answer', { matchId, index, answer: answer.trim(), typedAt: Math.min(serverNow(), game.endAt) });
       indexRef.current = index + 1;
       force((x) => x + 1);
     },
     [game, matchId],
   );
-
-  const playing = !!game && now >= game.startAt && now < game.endAt;
-  const over = !!game && now >= game.endAt;
-
-  // When time runs out, send the half-typed word: it counts only if it is complete and correct.
-  useEffect(() => {
-    if (over && !flushed.current) {
-      flushed.current = true;
-      if (buffer.trim()) submit(buffer);
-      setBuffer('');
-    }
-  }, [over, buffer, submit]);
 
   if (summary) return <ResultScene summary={summary} />;
 
@@ -129,45 +127,20 @@ export function BattleView({ matchId }: { matchId: string }) {
     );
   }
 
+  const mode: GameModeId = game?.mode ?? room?.mode ?? 'typing';
+  const info = GAME_MODES[mode];
   const meP = room?.players.find((p) => p.user.id === me?.id);
   const opp = room?.players.find((p) => p.user.id !== me?.id);
   const phase = room?.phase ?? 'waiting';
+  const playing = !!game && now >= game.startAt && now < game.endAt;
+  const over = !!game && now >= game.endAt;
   const countdown = room?.startAt ? Math.ceil((room.startAt - now) / 1000) : null;
-  const remaining = game ? Math.max(0, game.endAt - now) : 10_000;
-  const total = game ? game.endAt - game.startAt : 10_000;
-  const myIndex = indexRef.current;
-
-  const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === ' ' || e.key === 'Enter') {
-      e.preventDefault();
-      if (!playing) return;
-      submit(buffer);
-      setBuffer('');
-    }
-  };
-
-  const lane = (p: typeof meP, mine: boolean) => {
-    if (!p) return null;
+  const total = game ? game.endAt - game.startAt : info.durationMs;
+  const remaining = game ? Math.max(0, game.endAt - now) : total;
+  const score = (p: typeof meP) => {
+    if (!p) return { correctWords: 0, errors: 0 };
     const live = progress[p.user.id];
-    const correctWords = Math.max(p.correctWords, live?.correctWords ?? 0);
-    const errors = Math.max(p.errors, live?.errors ?? 0);
-    const pct = Math.min(100, (correctWords / 20) * 100);
-    return (
-      <div className={`lane ${mine ? 'lane-me' : ''}`}>
-        <div className="lane-name">
-          <strong>{mine ? 'Tú' : p.user.username}</strong>
-          <span className="muted small">
-            {correctWords} palabras · {errors} errores
-          </span>
-        </div>
-        <div className="lane-track">
-          <motion.div className="lane-runner" animate={{ left: `${pct}%` }} transition={{ type: 'spring', stiffness: 120, damping: 18 }}>
-            <Avatar config={p.user.avatar} pose={playing ? 'run' : 'idle'} size={64} />
-          </motion.div>
-          <div className="lane-fill" style={{ width: `${pct}%` }} />
-        </div>
-      </div>
-    );
+    return { correctWords: Math.max(p.correctWords, live?.correctWords ?? 0), errors: Math.max(p.errors, live?.errors ?? 0) };
   };
 
   return (
@@ -177,7 +150,7 @@ export function BattleView({ matchId }: { matchId: string }) {
           <ArrowLeft size={16} /> Bandeja
         </button>
         <div className="battle-title">
-          <span className="battle-kicker">Typing Battle</span>
+          <span className="battle-kicker">{info.name}</span>
           <strong>
             {meP?.user.username ?? '…'} <span className="vs">VS</span> {opp?.user.username ?? '…'}
           </strong>
@@ -189,6 +162,12 @@ export function BattleView({ matchId }: { matchId: string }) {
 
       {phase === 'waiting' && room && (
         <div className="lobby">
+          <div className="lobby-mode">
+            <strong>{info.name}</strong>
+            <span>
+              {info.tagline} · {Math.round(info.durationMs / 1000)} segundos
+            </span>
+          </div>
           <div className="lobby-stage">
             {[meP, opp].map(
               (p, i) =>
@@ -210,21 +189,26 @@ export function BattleView({ matchId }: { matchId: string }) {
                 ¡Estoy listo!
               </button>
             )}
-            <p className="muted small">Escribe cada palabra y pulsa espacio. Pegar texto no está permitido.</p>
+            <p className="muted small">{HOW_TO[mode]}</p>
           </div>
         </div>
       )}
 
-      {(phase === 'countdown' || phase === 'playing' || phase === 'finished') && (
+      {(phase === 'countdown' || phase === 'playing' || phase === 'finished') && meP && opp && (
         <div className="arena">
           <div className="timer">
             <div className="timer-fill" style={{ width: `${(remaining / total) * 100}%` }} />
             <span>{(remaining / 1000).toFixed(1)} s</span>
           </div>
-          <div className="lanes">
-            {lane(meP, true)}
-            {lane(opp, false)}
-          </div>
+
+          <DuelStage
+            me={{ user: meP.user, ...score(meP) }}
+            opp={{ user: opp.user, ...score(opp) }}
+            effects={effects}
+            now={now}
+            unit={info.unit}
+            finished={over || phase === 'finished'}
+          />
 
           <AnimatePresence>
             {countdown !== null && countdown > 0 && !playing && !over && (
@@ -234,39 +218,7 @@ export function BattleView({ matchId }: { matchId: string }) {
             )}
           </AnimatePresence>
 
-          <div className={`words ${playing ? '' : 'dim'}`}>
-            {game ? (
-              game.words.slice(Math.max(0, myIndex - 6), myIndex + 24).map((w, k) => {
-                const i = Math.max(0, myIndex - 6) + k;
-                const current = i === myIndex;
-                const typedOk = current && w.startsWith(buffer.trim());
-                return (
-                  <span key={i} className={`word ${marks[i] ?? ''} ${i < myIndex && marks[i] === 'pending' ? 'sent' : ''} ${current ? (typedOk ? 'current' : 'current wrong') : ''}`}>
-                    {w}
-                  </span>
-                );
-              })
-            ) : (
-              <span className="muted">Las palabras aparecen cuando empieza la batalla…</span>
-            )}
-          </div>
-
-          <input
-            ref={inputRef}
-            className="type-input"
-            value={buffer}
-            disabled={!playing}
-            onChange={(e) => setBuffer(e.target.value.replace(/\s/g, ''))}
-            onKeyDown={onKey}
-            onPaste={(e) => e.preventDefault()}
-            onDrop={(e) => e.preventDefault()}
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            placeholder={playing ? '' : over ? 'Tiempo. Calculando el resultado en el servidor…' : 'Prepárate…'}
-            aria-label="Escribe aquí"
-          />
+          <ModePanel mode={mode} prompts={game?.prompts ?? null} index={indexRef.current} marks={marks} playing={playing} over={over} onSubmit={submit} />
         </div>
       )}
     </div>

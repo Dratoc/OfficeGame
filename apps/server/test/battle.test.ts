@@ -110,17 +110,17 @@ describe('typing battle', () => {
     sb.emit('room:ready', { matchId });
 
     const [ga, gb] = await Promise.all([goA, goB]);
-    expect(ga.words).toEqual(gb.words);
+    expect(ga.prompts).toEqual(gb.prompts);
     expect(ga.endAt - ga.startAt).toBe(10_000);
 
     // Ana types 6 words correctly; Beto types 3 correct and 1 wrong; a bot-speed burst is rejected.
     for (let i = 0; i < 6; i++) {
       await sleep(450);
-      sa.emit('typing:word', { matchId, index: i, word: ga.words[i], typedAt: Date.now() });
-      if (i < 4) sb.emit('typing:word', { matchId, index: i, word: i === 2 ? 'xxx' : gb.words[i], typedAt: Date.now() });
+      sa.emit('match:answer', { matchId, index: i, answer: ga.prompts[i]!.text, typedAt: Date.now() });
+      if (i < 4) sb.emit('match:answer', { matchId, index: i, answer: i === 2 ? 'xxx' : gb.prompts[i]!.text, typedAt: Date.now() });
     }
     // Burst: 5 words at once, far faster than a human.
-    for (let i = 6; i < 11; i++) sa.emit('typing:word', { matchId, index: i, word: ga.words[i], typedAt: Date.now() });
+    for (let i = 6; i < 11; i++) sa.emit('match:answer', { matchId, index: i, answer: ga.prompts[i]!.text, typedAt: Date.now() });
 
     const summary = await endA;
     const a = summary.participants.find((p) => p.user.username === `ana_${suffix}`)!;
@@ -150,7 +150,7 @@ describe('typing battle', () => {
     expect(board.some((e: any) => e.user.username === `ana_${suffix}`)).toBe(true);
 
     // Words sent after the end are ignored and the match cannot be finished twice.
-    sb.emit('typing:word', { matchId, index: 4, word: gb.words[4], typedAt: Date.now() });
+    sb.emit('match:answer', { matchId, index: 4, answer: gb.prompts[4]!.text, typedAt: Date.now() });
     await sleep(200);
     const again = (await api(beto, 'GET', `/api/matches/${matchId}`)).json as MatchSummaryDto;
     expect(again.participants.find((p) => p.user.username === `beto_${suffix}`)!.correctWords).toBe(3);

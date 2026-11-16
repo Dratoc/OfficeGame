@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
+import { GAME_MODES, type PlayableModeId } from '@inbox/shared';
 import { Avatar } from '../avatar/Avatar';
 import { useApp } from '../lib/store';
 import { getSocket } from '../lib/socket';
@@ -26,7 +27,7 @@ export function QuickMatch() {
           <div className="qm-text">
             <strong>Buscando rival…</strong>
             <span className="muted small">
-              Typing Battle · {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}
+              {GAME_MODES[queue.mode ?? 'typing'].name} · {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}
             </span>
             <span className="qm-dots" aria-hidden="true">
               <i />
@@ -43,6 +44,7 @@ export function QuickMatch() {
   );
 }
 
-export function startQuickMatch() {
-  getSocket().emit('queue:join', { mode: 'typing' });
+export function startQuickMatch(mode: PlayableModeId) {
+  useApp.setState((st) => ({ queue: { ...st.queue, mode } }));
+  getSocket().emit('queue:join', { mode });
 }
