@@ -159,7 +159,7 @@ export class MatchEngine {
             if (room.players.get(userId)!.sockets > 0) return;
             room.abandoned.add(userId);
             const remaining = [...room.players.keys()].filter((id) => !room.abandoned.has(id));
-            if (remaining.length <= 1) void this.finish(room);
+            if (remaining.length <= 1 || (room.state && room.mode.isDone?.(room.state, remaining))) void this.finish(room);
           }, RECONNECT_WINDOW_MS),
         );
       }
@@ -215,6 +215,10 @@ export class MatchEngine {
     if (room.phase !== 'playing' && room.phase !== 'countdown') return null;
     if (room.abandoned.has(userId)) return null;
     const res = room.mode.applyAction(room.state, userId, data, { now: this.now(), startAt: room.startAt!, endAt: room.endAt! }) as SequenceActionResult;
+    if (res.accepted && room.mode.isDone?.(room.state, [...room.players.keys()].filter((id) => !room.abandoned.has(id)))) {
+      // Everyone crossed the finish line: no need to wait for the clock.
+      setTimeout(() => void this.finish(room), 0);
+    }
     if (res.stats) {
       getIO()
         ?.to(matchRoom(room.matchId))

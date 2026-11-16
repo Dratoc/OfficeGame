@@ -12,6 +12,7 @@ Un juego multijugador casual escondido dentro de una bandeja de correo de oficin
 - Armería (editor de avatar) con objetos bloqueados por nivel. El servidor rechaza objetos que el jugador no tiene.
 - Typing Battle 1 contra 1 de 10 segundos, **autoritativo en el servidor**: mismo texto para ambos, revelado al empezar; reloj sincronizado; cada palabra validada en el servidor; anti-trampas (pegar bloqueado, límite de velocidad humana, mensajes fuera de tiempo descartados); 5 s para reconectar antes de perder por abandono.
 - Cuatro modos 1 contra 1 con la misma garantía: **Typing Battle** (10 s), **Cálculo Express** (20 s, sumas, restas y multiplicaciones), **Atajos de Teclado** (15 s, combinaciones como Ctrl+Shift+S y símbolos) y **Tarea Express** (20 s, tareas de oficina ficticias paso a paso, como configurar una videollamada). Las respuestas correctas nunca salen del servidor.
+- **Racing Battle** de 2 a 4 jugadores: carrera escribiendo hasta 30 palabras, con una pista animada por jugador. La partida rápida arma la carrera con 4 jugadores, o con los que haya (mínimo 2) cuando el primero lleva 8 s esperando. Termina antes si todos llegan a la meta. Los puestos, el Elo (promedio de duelos entre cada par) y la XP de podio se calculan en el servidor.
 - Duelo animado en vivo: cada acierto lanza un proyectil al rival (fuego, estrella o avión de papel según tu avatar), cada error te hace tropezar, con barra de quién va ganando y combos.
 - Escena final animada (ganador celebra, perdedor bajo la nube), XP, niveles, rating Elo, objetos desbloqueados y correo de resultado.
 - Ranking global, perfil con estadísticas e historial, y un calendario de vista previa.
@@ -75,7 +76,7 @@ apps/web          React + Vite + Framer Motion
 
 - Un solo proceso de servidor mantiene las partidas en vivo. Para varios servidores hay que fijar cada partida a un proceso (sticky sessions o adaptador Redis de Socket.IO).
 - Si el servidor se reinicia en medio de una partida, esa partida se anula.
-- Racing, Puzzle, Office Battle, calendario de torneos y tienda cosmética quedan preparados en el modelo, pero no implementados.
+- Puzzle, Office Battle, calendario de torneos y tienda cosmética quedan preparados en el modelo, pero no implementados.
 
 ## Publicar en Render
 

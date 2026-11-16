@@ -33,7 +33,7 @@ interface State {
   composeTo: string;
   toasts: Toast[];
   /** Quick match search state, driven by the server. */
-  queue: { searching: boolean; since: number | null; mode?: PlayableModeId };
+  queue: { searching: boolean; since: number | null; mode?: PlayableModeId; players?: number };
   friendRequests: number;
   /** Bumped whenever friends or presence change, so views can refetch. */
   socialVersion: number;

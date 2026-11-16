@@ -30,6 +30,8 @@ export interface GameMode<State, Action, ActionResult> {
   startPayload(state: State): { prompts: Prompt[]; answers: string[] };
   applyAction(state: State, userId: string, action: Action, ctx: ActionContext): ActionResult;
   outcome(state: State, userId: string): PlayerOutcome;
+  /** True when the match can end before the clock runs out (every active player finished a race). */
+  isDone?(state: State, activeIds: string[]): boolean;
   /** Positive if a beats b, negative if b beats a, 0 draw. */
   compare(state: State, a: string, b: string): number;
 }

@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Wifi, WifiOff } from 'lucide-react';
-import { GAME_MODES, type GameModeId, type MatchGoEvent, type MatchSummaryDto, type RoomStateEvent, type WordResultEvent } from '@inbox/shared';
+import { GAME_MODES, RACE_LENGTH, type GameModeId, type MatchGoEvent, type MatchSummaryDto, type RoomStateEvent, type WordResultEvent } from '@inbox/shared';
 import { Avatar } from '../avatar/Avatar';
 import { getSocket, serverNow, syncClock } from '../lib/socket';
 import { useApp } from '../lib/store';
 import { ResultScene } from './ResultScene';
 import { DuelStage, type DuelEffect } from '../battle/DuelStage';
 import { ModePanel, type Mark } from '../battle/panels';
+import { RaceTrack } from '../battle/RaceTrack';
 
 const HOW_TO: Record<string, string> = {
   typing: 'Escribe cada palabra y pulsa espacio. Pegar texto no está permitido.',
   math: 'Escribe el resultado y pulsa Enter.',
   keys: 'Presiona la combinación que aparece (en Mac, ⌘ cuenta como Ctrl) o teclea los símbolos.',
   task: 'Elige la opción correcta de cada paso con el mouse o con las teclas 1, 2 y 3.',
+  racing: `Escribe cada palabra y pulsa espacio. Gana quien llegue primero a ${RACE_LENGTH} palabras.`,
 };
 
 export function BattleView({ matchId }: { matchId: string }) {
@@ -131,6 +133,9 @@ export function BattleView({ matchId }: { matchId: string }) {
   const info = GAME_MODES[mode];
   const meP = room?.players.find((p) => p.user.id === me?.id);
   const opp = room?.players.find((p) => p.user.id !== me?.id);
+  const race = mode === 'racing';
+  // Me first, then everyone else in join order.
+  const everyone = room ? [...(meP ? [meP] : []), ...room.players.filter((p) => p !== meP)] : [];
   const phase = room?.phase ?? 'waiting';
   const playing = !!game && now >= game.startAt && now < game.endAt;
   const over = !!game && now >= game.endAt;
@@ -152,7 +157,13 @@ export function BattleView({ matchId }: { matchId: string }) {
         <div className="battle-title">
           <span className="battle-kicker">{info.name}</span>
           <strong>
-            {meP?.user.username ?? '…'} <span className="vs">VS</span> {opp?.user.username ?? '…'}
+            {race && everyone.length > 2 ? (
+              `Carrera de ${everyone.length} corredores`
+            ) : (
+              <>
+                {meP?.user.username ?? '…'} <span className="vs">VS</span> {opp?.user.username ?? '…'}
+              </>
+            )}
           </strong>
         </div>
         <span className={`net ${rtt !== null && rtt < 150 ? 'good' : 'meh'}`} title="Latencia con el servidor">
@@ -168,22 +179,24 @@ export function BattleView({ matchId }: { matchId: string }) {
               {info.tagline} · {Math.round(info.durationMs / 1000)} segundos
             </span>
           </div>
-          <div className="lobby-stage">
-            {[meP, opp].map(
+          <div className={`lobby-stage ${everyone.length > 2 ? 'crowd' : ''}`}>
+            {(everyone.length > 2 ? everyone : [meP, opp]).map(
               (p, i) =>
                 p && (
-                  <motion.div key={p.user.id} className={`lobby-player ${i === 1 ? 'flip' : ''}`} initial={{ opacity: 0, x: i === 0 ? -40 : 40 }} animate={{ opacity: 1, x: 0 }}>
-                    <Avatar config={p.user.avatar} pose={p.ready ? 'wave' : 'idle'} size={190} />
+                  <motion.div key={p.user.id} className={`lobby-player ${i === 1 && everyone.length <= 2 ? 'flip' : ''}`} initial={{ opacity: 0, x: i === 0 ? -40 : 40 }} animate={{ opacity: 1, x: 0 }}>
+                    <Avatar config={p.user.avatar} pose={p.ready ? 'wave' : 'idle'} size={everyone.length > 2 ? 140 : 190} />
                     <strong>{p.user.username}</strong>
                     <span className={`ready-tag ${p.ready ? 'on' : ''} ${!p.connected ? 'off' : ''}`}>{!p.connected ? 'Desconectado' : p.ready ? '¡Listo!' : 'Preparándose…'}</span>
                   </motion.div>
                 ),
             )}
-            <div className="lobby-vs">VS</div>
+            {everyone.length <= 2 && <div className="lobby-vs">VS</div>}
           </div>
           <div className="lobby-actions">
             {meP?.ready ? (
-              <p className="muted">Esperando a {opp?.user.username}. La batalla comienza cuando ambos estén listos.</p>
+              <p className="muted">
+                {everyone.length > 2 ? 'Esperando al resto. La carrera comienza cuando todos estén listos.' : `Esperando a ${opp?.user.username}. La batalla comienza cuando ambos estén listos.`}
+              </p>
             ) : (
               <button className="btn btn-primary btn-lg" onClick={() => getSocket().emit('room:ready', { matchId })}>
                 ¡Estoy listo!
@@ -201,14 +214,18 @@ export function BattleView({ matchId }: { matchId: string }) {
             <span>{(remaining / 1000).toFixed(1)} s</span>
           </div>
 
-          <DuelStage
-            me={{ user: meP.user, ...score(meP) }}
-            opp={{ user: opp.user, ...score(opp) }}
-            effects={effects}
-            now={now}
-            unit={info.unit}
-            finished={over || phase === 'finished'}
-          />
+          {race ? (
+            <RaceTrack runners={everyone.map((p) => ({ user: p.user, ...score(p) }))} meId={meP.user.id} effects={effects} now={now} finished={over || phase === 'finished'} />
+          ) : (
+            <DuelStage
+              me={{ user: meP.user, ...score(meP) }}
+              opp={{ user: opp.user, ...score(opp) }}
+              effects={effects}
+              now={now}
+              unit={info.unit}
+              finished={over || phase === 'finished'}
+            />
+          )}
 
           <AnimatePresence>
             {countdown !== null && countdown > 0 && !playing && !over && (
@@ -218,7 +235,14 @@ export function BattleView({ matchId }: { matchId: string }) {
             )}
           </AnimatePresence>
 
-          <ModePanel mode={mode} prompts={game?.prompts ?? null} index={indexRef.current} marks={marks} playing={playing} over={over} onSubmit={submit} />
+          {race && score(meP).correctWords >= RACE_LENGTH ? (
+            <div className="race-done">
+              <strong>¡Llegaste a la meta!</strong>
+              <span className="muted">Espera a que lleguen los demás o a que se acabe el tiempo.</span>
+            </div>
+          ) : (
+            <ModePanel mode={mode} prompts={game?.prompts ?? null} index={indexRef.current} marks={marks} playing={playing} over={over} onSubmit={submit} />
+          )}
         </div>
       )}
     </div>

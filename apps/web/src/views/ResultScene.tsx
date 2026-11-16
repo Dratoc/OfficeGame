@@ -6,6 +6,7 @@ import { Avatar } from '../avatar/Avatar';
 import { RarityBadge } from '../components/Bits';
 import { useApp } from '../lib/store';
 import { api } from '../lib/api';
+import { startQuickMatch } from '../components/QuickMatch';
 
 const RESULT_TEXT: Record<ParticipantResultDto['result'], string> = {
   win: '¡Victoria!',
@@ -67,18 +68,28 @@ export function ResultScene({ summary }: { summary: MatchSummaryDto }) {
   const other = summary.participants.find((p) => p !== mine);
   const won = mine.result === 'win';
   const draw = mine.result === 'draw';
-  // Winner stands on the left, raised.
-  const ordered = [...summary.participants].sort((a, b) => (a.result === 'win' ? -1 : b.result === 'win' ? 1 : 0));
+  const race = summary.participants.length > 2;
+  const words = summary.mode === 'typing' || summary.mode === 'racing';
+  const byPlace = [...summary.participants].sort((a, b) => a.placement - b.placement || (a.result === 'win' ? -1 : b.result === 'win' ? 1 : 0));
+  // Duels: the winner stands on the left. Races: classic podium, first in the middle.
+  const ordered = race ? [byPlace[1]!, byPlace[0]!, ...byPlace.slice(2)] : byPlace;
+  const label = (p: ParticipantResultDto) => (race && p.result !== 'abandon' && p.result !== 'win' ? `${p.placement}.º lugar` : RESULT_TEXT[p.result]);
   const ratingDelta = mine.ratingAfter - mine.ratingBefore;
 
   return (
     <div className={`result ${won ? 'is-win' : draw ? 'is-draw' : 'is-loss'}`}>
       {won && <Confetti />}
       <motion.h1 className="result-title" initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 14 }}>
-        {RESULT_TEXT[mine.result]}
+        {label(mine)}
       </motion.h1>
       <p className="result-sub">
-        {won
+        {race
+          ? mine.result === 'abandon'
+            ? 'Te desconectaste demasiado tiempo.'
+            : won
+              ? `Llegaste primero entre ${summary.participants.length} corredores. ¡Nadie escribe más rápido en este piso!`
+              : `Llegaste en el ${mine.placement}.º lugar de ${summary.participants.length}. ${byPlace[0]!.user.username} se llevó la carrera.`
+          : won
           ? `Derrotaste a ${other?.user.username ?? 'tu rival'}. El Departamento de Duelos toma nota.`
           : draw
             ? 'Ni vencedores ni vencidos. Muy sinérgico.'
@@ -87,13 +98,13 @@ export function ResultScene({ summary }: { summary: MatchSummaryDto }) {
               : `${other?.user.username ?? 'Tu rival'} ganó esta vez. La revancha está a un correo de distancia.`}
       </p>
 
-      <div className="result-stage">
+      <div className={`result-stage ${race ? 'is-race' : ''}`}>
         {ordered.map((p, i) => {
-          const pose = p.result === 'win' ? 'win' : p.result === 'draw' ? 'idle' : 'lose';
+          const pose = p.result === 'win' ? 'win' : p.result === 'draw' || (race && p.result === 'loss' && p.placement <= 3) ? 'idle' : 'lose';
           return (
             <motion.div
               key={p.user.id}
-              className={`podium podium-${p.result}`}
+              className={`podium podium-${p.result} ${race ? `place-${p.result === 'abandon' ? 9 : p.placement}` : ''}`}
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 + i * 0.15, type: 'spring' }}
@@ -103,10 +114,10 @@ export function ResultScene({ summary }: { summary: MatchSummaryDto }) {
                   <Crown size={28} />
                 </motion.div>
               )}
-              <Avatar config={p.user.avatar} pose={pose} size={p.result === 'win' ? 220 : 180} />
+              <Avatar config={p.user.avatar} pose={pose} size={race ? (p.result === 'win' ? 180 : 140) : p.result === 'win' ? 220 : 180} />
               <div className="podium-block">
                 <strong>{p.user.username}</strong>
-                <span>{RESULT_TEXT[p.result]}</span>
+                <span>{label(p)}</span>
               </div>
             </motion.div>
           );
@@ -126,9 +137,9 @@ export function ResultScene({ summary }: { summary: MatchSummaryDto }) {
           <tbody>
             {(
               [
-                [summary.mode === 'typing' ? 'Palabras correctas' : `${cap(GAME_MODES[summary.mode].unit)} correctos`, 'correctWords'],
+                [words ? 'Palabras correctas' : `${cap(GAME_MODES[summary.mode].unit)} correctos`, 'correctWords'],
                 ['Errores', 'errors'],
-                [summary.mode === 'typing' ? 'Velocidad (PPM)' : 'Ritmo (aciertos/min)', 'wpm'],
+                [words ? 'Velocidad (PPM)' : 'Ritmo (aciertos/min)', 'wpm'],
                 ['Precisión', 'accuracy'],
               ] as const
             ).map(([label, key]) => (
@@ -188,7 +199,12 @@ export function ResultScene({ summary }: { summary: MatchSummaryDto }) {
       )}
 
       <div className="result-actions">
-        {other && (
+        {race && (
+          <button className="btn btn-primary" onClick={() => startQuickMatch('racing')}>
+            <RotateCcw size={16} /> Otra carrera
+          </button>
+        )}
+        {other && !race && (
           <button className="btn btn-primary" onClick={() => openCompose(other.user.username)}>
             <RotateCcw size={16} /> Pedir revancha
           </button>

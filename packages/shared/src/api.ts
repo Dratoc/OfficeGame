@@ -58,6 +58,8 @@ export interface MailDto {
 export interface ParticipantResultDto {
   user: PublicUser;
   result: MatchResult;
+  /** 1 for the winner. Players who tie share a place. */
+  placement: number;
   correctWords: number;
   errors: number;
   correctChars: number;

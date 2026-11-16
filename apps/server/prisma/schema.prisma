@@ -159,6 +159,7 @@ model MatchParticipant {
   xpGained     Int     @default(0)
   /// win | loss | draw | abandon (null while playing)
   result       String?
+  placement    Int?
   unlocked     String[]
 
   @@id([matchId, userId])
