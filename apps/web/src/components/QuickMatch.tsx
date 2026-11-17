@@ -15,7 +15,7 @@ export function QuickMatch() {
     const t = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(t);
   }, [queue.searching]);
-  const race = queue.mode === 'racing';
+  const group = queue.mode ? GAME_MODES[queue.mode].maxPlayers > 2 && queue.mode !== 'puzzle' : false;
   const secs = queue.since ? Math.max(0, Math.floor((now - queue.since) / 1000)) : 0;
 
   return (
@@ -26,7 +26,7 @@ export function QuickMatch() {
             <Avatar config={me.avatar} pose="run" size={64} />
           </div>
           <div className="qm-text">
-            <strong>{race ? `Armando carrera… ${queue.players ?? 1} de ${GAME_MODES.racing.maxPlayers}` : 'Buscando rival…'}</strong>
+            <strong>{group ? `${queue.mode === 'office' ? 'Armando sala' : 'Armando carrera'}… ${queue.players ?? 1} de ${GAME_MODES[queue.mode!].maxPlayers}` : 'Buscando rival…'}</strong>
             <span className="muted small">
               {GAME_MODES[queue.mode ?? 'typing'].name} · {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}
             </span>

@@ -21,12 +21,13 @@
 <div id="menu">
   <div class="card">
     <h1>Office Battle 3D</h1>
-    <p>Prototipo de práctica: tu avatar contra el Gerente Dragón, en la oficina del gremio. 60 segundos, gana quien deje al otro K.O. o quien tenga más vida al final.</p>
+    <p>Práctica: tu avatar contra 1 a 3 bots en la oficina del gremio. Todos contra todos, gana el último en pie o quien tenga más vida al final.</p>
     <ul>
       <li><kbd>WASD</kbd> o flechas: moverse</li>
       <li><kbd>J</kbd> o clic: atacar (10 de daño)</li>
       <li><kbd>K</kbd> o clic derecho (mantener): bloquear de frente. Quien te pega rebota y queda abierto.</li>
       <li><kbd>Espacio</kbd>: esquivar con voltereta (invulnerable, 0,9 s de espera)</li>
+      <li><kbd>Q</kbd> y <kbd>E</kbd>: tus dos poderes (o tócalos en la barra de abajo)</li>
       <li>En el celular aparecen un joystick y botones.</li>
     </ul>
     <div class="row">
@@ -34,7 +35,9 @@
       <button id="look">Cambiar avatar</button>
     </div>
     <div class="row" style="margin-top:12px">
-      <label>Rival <select id="skill"><option value="0.3">Tranquilo</option><option value="0.5" selected>Normal</option><option value="0.9">Difícil</option></select></label>
+      <label>Rivales <select id="bots"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option></select></label>
+      <label>Poderes <select id="powers"><option value="stapler,folders">Grapadora + Carpetas</option><option value="coffee,sprint">Café + Viernes 17:59</option><option value="meeting,bandage">Reunión + Curita</option><option value="stapler,coffee">Grapadora + Café</option></select></label>
+      <label>Nivel <select id="skill"><option value="0.3">Tranquilo</option><option value="0.5" selected>Normal</option><option value="0.9">Difícil</option></select></label>
     </div>
   </div>
 </div>

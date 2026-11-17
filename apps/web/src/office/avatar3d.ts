@@ -66,6 +66,8 @@ export interface AvatarRig {
   barrier: THREE.Mesh;
   stars: THREE.Group;
   trail: THREE.Mesh;
+  /** Golden folder shield from the power. */
+  shield: THREE.Mesh;
 }
 
 export function buildAvatar(config: AvatarConfig, accent: string): AvatarRig {
@@ -266,7 +268,12 @@ export function buildAvatar(config: AvatarConfig, accent: string): AvatarRig {
   trail.visible = false;
   root.add(trail);
 
-  return { root, body, head, armL, armR, legL, legR, cape, wings, pet, aura, barrier, stars, trail };
+  const shield = new THREE.Mesh(new THREE.IcosahedronGeometry(1.0, 1), new THREE.MeshBasicMaterial({ color: '#ffd95e', transparent: true, opacity: 0.3, wireframe: true, depthWrite: false }));
+  shield.position.y = 0.85;
+  shield.visible = false;
+  root.add(shield);
+
+  return { root, body, head, armL, armR, legL, legR, cape, wings, pet, aura, barrier, stars, trail, shield };
 }
 
 function addWeapon(hand: THREE.Group, id: string | null) {

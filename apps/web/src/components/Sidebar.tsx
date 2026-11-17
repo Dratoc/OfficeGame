@@ -1,4 +1,4 @@
-import { CalendarDays, Inbox, PenSquare, Send, Shield, ShoppingBag, Sword, Swords, Trophy, UserRound, Users, Zap } from 'lucide-react';
+import { CalendarDays, DoorOpen, Inbox, PenSquare, Send, Shield, ShoppingBag, Sword, Swords, Trophy, UserRound, Users, Zap } from 'lucide-react';
 import { startQuickMatch } from './QuickMatch';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { GAME_MODES, PLAYABLE_MODES } from '@inbox/shared';
@@ -16,7 +16,7 @@ function Item({ icon, label, active, count, onClick, badge }: { icon: ReactNode;
 }
 
 export function Sidebar() {
-  const { view, go, unread, openCompose, me, queue, friendRequests } = useApp();
+  const { view, go, unread, openCompose, me, queue, friendRequests, lobby } = useApp();
   const folder = view.kind === 'mail' ? view.folder : null;
   const toFolder = (f: Folder) => go({ kind: 'mail', folder: f, mailId: null });
   const is = (k: View['kind']) => view.kind === k;
@@ -78,6 +78,7 @@ export function Sidebar() {
  <Item icon={<Users size={18} />} label="Contactos" active={is('contacts')} count={friendRequests} onClick={() => go({ kind: 'contacts' })} />
         <Item icon={<Trophy size={18} />} label="Ranking" active={is('ranking')} onClick={() => go({ kind: 'ranking' })} />
         <Item icon={<Shield size={18} />} label="Armería" active={is('armory')} onClick={() => go({ kind: 'armory' })} />
+        <Item icon={<DoorOpen size={18} />} label="Salas de batalla" active={is('rooms')} count={lobby ? lobby.members.length : undefined} onClick={() => go({ kind: 'rooms' })} />
         <Item icon={<Sword size={18} />} label="Práctica 3D" active={is('practice')} onClick={() => go({ kind: 'practice' })} />
         <Item icon={<ShoppingBag size={18} />} label="Tienda" active={is('shop')} onClick={() => go({ kind: 'shop' })} />
         <Item icon={<UserRound size={18} />} label="Mi perfil" active={is('profile') && (view as { username: string }).username === me?.username} onClick={() => go({ kind: 'profile', username: me!.username })} />

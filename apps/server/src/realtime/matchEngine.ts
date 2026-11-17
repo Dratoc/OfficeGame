@@ -8,6 +8,7 @@ import {
   type RoomStateEvent,
   type Answer,
   type OfficeInputBatch,
+  type PowerId,
 } from '@inbox/shared';
 import { prisma } from '../lib/db';
 import { publicUserSelect, toPublicUser } from '../lib/users';
@@ -34,6 +35,8 @@ interface Room {
   /** Simulation loop of real-time modes. */
   loop: NodeJS.Timeout | null;
   dropTimers: Map<string, NodeJS.Timeout>;
+  /** What each player picked in the lobby (Office Battle powers). */
+  options: Map<string, unknown>;
   abandoned: Set<string>;
   finishing: Promise<void> | null;
 }
@@ -80,6 +83,7 @@ export class MatchEngine {
         timers: [],
         loop: null,
         dropTimers: new Map(),
+        options: new Map(),
         abandoned: new Set(),
         finishing: null,
       };
@@ -111,6 +115,7 @@ export class MatchEngine {
           correctWords: s?.correctWords ?? 0,
           errors: s?.errors ?? 0,
           nextIndex: s?.nextIndex ?? 0,
+          ...(room.options.has(id) ? { loadout: room.options.get(id) as PowerId[] } : {}),
         };
       }),
     };
@@ -184,10 +189,18 @@ export class MatchEngine {
     }
   }
 
+  /** A player picks their powers in the lobby. Locked once the countdown starts. */
+  setOption(matchId: string, userId: string, value: unknown) {
+    const room = this.rooms.get(matchId);
+    if (!room || !room.players.has(userId) || room.phase !== 'waiting') return;
+    room.options.set(userId, value);
+    this.broadcast(room);
+  }
+
   private async startCountdown(room: Room) {
     room.phase = 'countdown';
     const seed = randomInt(1, 2 ** 31 - 1);
-    room.state = room.mode.createState(seed, [...room.players.keys()]);
+    room.state = room.mode.createState(seed, [...room.players.keys()], room.options);
     const now = this.now();
     room.startAt = now + COUNTDOWN_MS;
     room.endAt = room.startAt + room.mode.durationMs;

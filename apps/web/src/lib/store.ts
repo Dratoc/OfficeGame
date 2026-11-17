@@ -1,4 +1,4 @@
-import type { PlayableModeId } from '@inbox/shared';
+import type { LobbyState, PlayableModeId } from '@inbox/shared';
 import { create } from 'zustand';
 import type { MailDto, MeDto } from '@inbox/shared';
 import { api } from './api';
@@ -14,7 +14,8 @@ export type View =
   | { kind: 'calendar' }
   | { kind: 'contacts' }
   | { kind: 'shop' }
-  | { kind: 'practice' };
+  | { kind: 'practice' }
+  | { kind: 'rooms' };
 
 export interface Toast {
   id: number;
@@ -36,6 +37,8 @@ interface State {
   toasts: Toast[];
   /** Quick match search state, driven by the server. */
   queue: { searching: boolean; since: number | null; mode?: PlayableModeId; players?: number };
+  /** Private Office Battle room you are in, driven by the server. */
+  lobby: LobbyState | null;
   friendRequests: number;
   /** Bumped whenever friends or presence change, so views can refetch. */
   socialVersion: number;
@@ -66,6 +69,7 @@ export const useApp = create<State>((set, get) => ({
   composeTo: '',
   toasts: [],
   queue: { searching: false, since: null },
+  lobby: null,
   friendRequests: 0,
   socialVersion: 0,
   refreshSocial: async () => {

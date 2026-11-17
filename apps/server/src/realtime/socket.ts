@@ -1,10 +1,11 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
-import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema, officeInputBatchSchema } from '@inbox/shared';
+import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema, officeInputBatchSchema, loadoutPickSchema, lobbyCodeSchema, lobbyInviteSchema } from '@inbox/shared';
 import { SESSION_COOKIE, readCookie, userIdFromToken } from '../lib/auth';
 import { setIO, toUser, userRoom, type IO } from './notify';
 import { engine } from './matchEngine';
 import { matchmaker } from './matchmaking';
+import { lobbies } from './lobbies';
 import { markConnected, markDisconnected } from './presence';
 import { friendIds } from '../lib/friends';
 
@@ -89,8 +90,43 @@ export function attachSocket(server: HttpServer): IO {
       engine.input(userId, parsed.data);
     });
 
+    socket.on('room:loadout', (data) => {
+      if (!allow()) return;
+      const parsed = loadoutPickSchema.safeParse(data);
+      if (!parsed.success || !joined.has(parsed.data.matchId)) return;
+      engine.setOption(parsed.data.matchId, userId, parsed.data.powers);
+    });
+
+    // Private Office Battle rooms.
+    socket.on('lobby:create', async (ack) => {
+      if (typeof ack !== 'function' || !allow()) return;
+      matchmaker.leave(userId);
+      const code = await lobbies.create(userId).catch(() => null);
+      ack(code ? { ok: true, code } : { ok: false, error: 'No se pudo crear la sala' });
+    });
+    socket.on('lobby:join', async (data, ack) => {
+      if (typeof ack !== 'function' || !allow()) return;
+      const parsed = lobbyCodeSchema.safeParse(data);
+      if (!parsed.success) return ack({ ok: false, error: 'El código tiene 5 caracteres' });
+      matchmaker.leave(userId);
+      const error = await lobbies.join(parsed.data.code, userId).catch(() => 'No se pudo entrar a la sala');
+      ack(error ? { ok: false, error } : { ok: true });
+    });
+    socket.on('lobby:leave', () => lobbies.leave(userId));
+    socket.on('lobby:start', async (ack) => {
+      if (typeof ack !== 'function' || !allow()) return;
+      const error = await lobbies.start(userId).catch(() => 'No se pudo empezar la pelea');
+      ack(error ? { ok: false, error } : { ok: true });
+    });
+    socket.on('lobby:invite', (data) => {
+      if (!allow()) return;
+      const parsed = lobbyInviteSchema.safeParse(data);
+      if (parsed.success) void lobbies.invite(userId, parsed.data.userId).catch(() => {});
+    });
+
     socket.on('queue:join', (data) => {
       if (!allow() || !queueJoinSchema.safeParse(data).success) return;
+      lobbies.leave(userId);
       void matchmaker.join(data.mode, userId).catch(() => {});
     });
 
@@ -101,6 +137,7 @@ export function attachSocket(server: HttpServer): IO {
       joined.clear();
       if (markDisconnected(userId)) {
         matchmaker.leave(userId);
+        lobbies.leave(userId);
         void broadcastPresence(userId, false).catch(() => {});
       }
     });

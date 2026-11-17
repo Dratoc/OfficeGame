@@ -80,6 +80,21 @@ export const sfx = {
     tone('sawtooth', 440, 80, 0.7, 0.15);
     tone('square', 220, 50, 0.8, 0.1, 0.1);
   },
+  shot() {
+    tone('square', 900, 300, 0.08, 0.08);
+    hiss(3000, 0.08, 0.12);
+  },
+  splash() {
+    hiss(700, 0.35, 0.3, 200);
+  },
+  meeting() {
+    tone('triangle', 330, 330, 0.15, 0.12);
+    tone('triangle', 262, 262, 0.3, 0.12, 0.15);
+  },
+  heal() {
+    tone('sine', 523, 784, 0.25, 0.1);
+    tone('sine', 784, 1046, 0.25, 0.08, 0.12);
+  },
   go() {
     tone('square', 523, 523, 0.12, 0.1);
     tone('square', 784, 784, 0.25, 0.1, 0.12);

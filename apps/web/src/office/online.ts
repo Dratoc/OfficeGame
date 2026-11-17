@@ -1,4 +1,4 @@
-import { OFFICE_TICK_MS, cloneFighter, stepFighter, type Fighter, type OfficeFrame, type OfficeInput, type OfficeInputBatch } from '@inbox/shared';
+import { OFFICE_TICK_MS, cloneFighter, lastStanding, stepFighter, type Fighter, type OfficeFrame, type OfficeInput, type OfficeInputBatch } from '@inbox/shared';
 import { OfficeArena, type ArenaPlayer } from './arena';
 import { Controls } from './input';
 import { lerpFighter } from './lerp';
@@ -64,9 +64,15 @@ export class OnlineOfficeMatch {
     if (this.frames.length > 30) this.frames.shift();
     this.arena.events(frame.events);
     if (frame.events.some((e) => e.type === 'ko')) {
-      const ko = frame.events.find((e) => e.type === 'ko')!;
-      this.arena.hud.banner('K.O.', ko.target === this.opts.meId ? 'Perdiste esta vez' : '¡Ganaste!', 0);
-      this.ended = true;
+      if (lastStanding(frame.fighters)) {
+        // Last one standing: the fight is over.
+        const winner = frame.fighters.find((f) => f.hp > 0);
+        const name = this.opts.players.find((p) => p.id === winner?.id)?.name;
+        this.arena.hud.banner('K.O.', winner?.id === this.opts.meId ? '¡Ganaste!' : name ? `Gana ${name}` : '', 0);
+        this.ended = true;
+      } else if (frame.events.some((e) => e.type === 'ko' && e.target === this.opts.meId)) {
+        this.arena.hud.banner('K.O.', 'Quedaste fuera', 1800);
+      }
     }
     this.reconcile(frame);
   }
@@ -79,8 +85,8 @@ export class OnlineOfficeMatch {
     this.controls.resumeAfter(ack);
     this.pending = this.pending.filter((i) => i.seq > ack);
     const me = cloneFighter(server);
-    const rival = frame.fighters.find((f) => f.id !== this.opts.meId) ?? null;
-    for (const input of this.pending) stepFighter(me, input, rival);
+    const rivals = frame.fighters.filter((f) => f.id !== this.opts.meId);
+    for (const input of this.pending) stepFighter(me, input, rivals);
     if (before) {
       const dx = before.x - me.x;
       const dz = before.z - me.z;
@@ -132,8 +138,8 @@ export class OnlineOfficeMatch {
         this.outbox.push(input);
         if (this.me) {
           this.prevMe = cloneFighter(this.me);
-          const rival = this.latest?.fighters.find((f) => f.id !== this.opts.meId) ?? null;
-          stepFighter(this.me, input, rival);
+          const rivals = this.latest?.fighters.filter((f) => f.id !== this.opts.meId) ?? [];
+          stepFighter(this.me, input, rivals);
         }
         if (this.outbox.length >= STEPS_PER_SEND) this.flush();
       }
@@ -144,7 +150,10 @@ export class OnlineOfficeMatch {
       this.arena.hud.banner('¡Tiempo!', '', 0);
     }
 
-    this.arena.render({ fighters: this.view(now), remainingMs: now < startAt ? endAt - startAt : Math.max(0, endAt - now), countdown: null });
+    // Staples are drawn where they are now, moved on from the last frame.
+    const ahead = this.latest ? Math.min(0.1, Math.max(0, (now - this.latest.at) / 1000)) : 0;
+    const projectiles = (this.latest?.projectiles ?? []).map((p) => ({ ...p, x: p.x + p.vx * ahead, z: p.z + p.vz * ahead }));
+    this.arena.render({ fighters: this.view(now), projectiles, remainingMs: now < startAt ? endAt - startAt : Math.max(0, endAt - now), countdown: null });
   };
 
   private flush() {

@@ -1,9 +1,15 @@
 import {
   GAME_MODES,
   NO_INPUT,
+  DEFAULT_LOADOUT,
+  OFFICE_MAX_PLAYERS,
   compareFighters,
   createFighter,
+  createWorld,
+  lastStanding,
+  loadoutSchema,
   packFighter,
+  packProjectile,
   resolveCombat,
   stepFighter,
   OFFICE_TICK_MS,
@@ -11,6 +17,7 @@ import {
   type OfficeEvent,
   type OfficeFrame,
   type OfficeInput,
+  type OfficeWorld,
 } from '@inbox/shared';
 import type { GameMode, PlayerOutcome } from './types';
 
@@ -19,6 +26,7 @@ const MAX_QUEUE = 6;
 
 export interface OfficeState {
   fighters: Map<string, Fighter>;
+  world: OfficeWorld;
   order: string[];
   queues: Map<string, OfficeInput[]>;
   /** The last input applied, so a held direction keeps working when a packet is late. */
@@ -34,19 +42,25 @@ export interface OfficeState {
 }
 
 /**
- * Office Battle on the server. Players only send inputs (move, attack, block, dodge); the
- * server runs the fixed-step simulation, settles every hit and sends the result to both.
+ * Office Battle on the server, for 2 to 4 players. Players only send inputs (move, attack,
+ * block, dodge, powers); the server runs the fixed-step simulation, settles every hit and
+ * sends the result to everyone.
  * One input step is consumed per simulation step, so sending more inputs never makes you faster.
  */
 export const officeMode: GameMode<OfficeState, { inputs: OfficeInput[] }, { accepted: boolean }, OfficeFrame> = {
   id: 'office',
   durationMs: GAME_MODES.office.durationMs,
   minPlayers: 2,
-  maxPlayers: 2,
+  maxPlayers: OFFICE_MAX_PLAYERS,
   tickMs: OFFICE_TICK_MS,
 
-  createState(_seed, playerIds) {
-    const fighters = new Map(playerIds.map((id, i) => [id, createFighter(id, i)]));
+  createState(_seed, playerIds, options) {
+    // Each player's power picks from the lobby; anything invalid falls back to the default pair.
+    const loadout = (id: string) => {
+      const parsed = loadoutSchema.safeParse(options?.get(id));
+      return parsed.success ? parsed.data : DEFAULT_LOADOUT;
+    };
+    const fighters = new Map(playerIds.map((id, i) => [id, createFighter(id, i, loadout(id))]));
     const players = new Map(
       playerIds.map((id) => {
         const f = fighters.get(id)!;
@@ -66,6 +80,7 @@ export const officeMode: GameMode<OfficeState, { inputs: OfficeInput[] }, { acce
     );
     return {
       fighters,
+      world: createWorld(playerIds.map((id) => fighters.get(id)!)),
       order: [...playerIds],
       queues: new Map(playerIds.map((id) => [id, []])),
       held: new Map(playerIds.map((id) => [id, NO_INPUT])),
@@ -94,7 +109,8 @@ export const officeMode: GameMode<OfficeState, { inputs: OfficeInput[] }, { acce
     while (q.length > MAX_QUEUE) {
       // Keep presses that would otherwise be lost when merging away old steps.
       const dropped = q.shift()!;
-      q[0] = { ...q[0]!, atk: q[0]!.atk || dropped.atk, dge: q[0]!.dge || dropped.dge };
+      const next = q[0]!;
+      q[0] = { ...next, atk: next.atk || dropped.atk, dge: next.dge || dropped.dge, p1: next.p1 || dropped.p1, p2: next.p2 || dropped.p2 };
     }
     return { accepted: true };
   },
@@ -104,11 +120,12 @@ export const officeMode: GameMode<OfficeState, { inputs: OfficeInput[] }, { acce
       tick: state.tick,
       at: ctx.startAt + state.simulatedMs,
       fighters: state.order.map((id) => packFighter(state.fighters.get(id)!)),
+      projectiles: state.world.projectiles.map(packProjectile),
       ack: Object.fromEntries(state.ack),
       events,
     });
     if (ctx.now < ctx.startAt) {
-      // Show both fighters in their corners during the countdown.
+      // Show every fighter in their corner during the countdown.
       if (state.announced) return null;
       state.announced = true;
       return frame([]);
@@ -121,9 +138,9 @@ export const officeMode: GameMode<OfficeState, { inputs: OfficeInput[] }, { acce
       state.simulatedMs += OFFICE_TICK_MS;
       steps++;
       state.tick++;
-      const list = state.order.map((id) => state.fighters.get(id)!);
+      const list = state.world.fighters;
       for (const f of list) {
-        const rival = list.find((o) => o !== f) ?? null;
+        const rivals = list.filter((o) => o !== f);
         let input = NO_INPUT;
         if (ctx.activeIds.includes(f.id)) {
           const next = state.queues.get(f.id)!.shift();
@@ -133,13 +150,13 @@ export const officeMode: GameMode<OfficeState, { inputs: OfficeInput[] }, { acce
             input = next;
           } else {
             // A late packet: keep moving and blocking the same way, without repeating presses.
-            input = { ...state.held.get(f.id)!, atk: false, dge: false };
+            input = { ...state.held.get(f.id)!, atk: false, dge: false, p1: false, p2: false };
           }
         }
-        stepFighter(f, input, rival);
+        stepFighter(f, input, rivals);
       }
-      events.push(...resolveCombat(list));
-      if (list.some((f) => f.hp <= 0)) break;
+      events.push(...resolveCombat(state.world));
+      if (lastStanding(list.filter((f) => ctx.activeIds.includes(f.id) || f.hp <= 0))) break;
     }
     return steps === 0 ? null : frame(events);
   },
@@ -153,12 +170,14 @@ export const officeMode: GameMode<OfficeState, { inputs: OfficeInput[] }, { acce
       // Damage dealt and health left take the place of characters and speed.
       correctChars: f.dealt,
       wpm: 0,
-      accuracy: f.attacks ? Math.round((f.hits / f.attacks) * 100) : 0,
+      accuracy: f.attacks + f.casts ? Math.min(100, Math.round((f.hits / (f.attacks + f.casts)) * 100)) : 0,
     };
   },
 
-  isDone(state) {
-    return [...state.fighters.values()].some((f) => f.hp <= 0);
+  isDone(state, activeIds) {
+    // The fight ends when one fighter (of those still connected) is left standing.
+    const standing = [...state.fighters.values()].filter((f) => f.hp > 0 && activeIds.includes(f.id));
+    return standing.length <= 1;
   },
 
   compare(state, a, b) {
