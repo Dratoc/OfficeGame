@@ -216,7 +216,9 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
               ? 'Estimado/a colaborador/a:\n\nEl duelo terminó en empate. El consejo real lo considera "un resultado sinérgico".'
               : 'Estimado/a colaborador/a:\n\nLa partida terminó porque alguien se desconectó.',
         n > 2 && result !== 'abandon' ? `\nTerminaste en el ${place}.º lugar de ${n}.` : '',
-        `\n${GAME_MODES[input.mode].name}: ${o.correctWords} ${GAME_MODES[input.mode].unit} correctos, ${o.errors} errores.`,
+        input.mode === 'office'
+          ? `\n${GAME_MODES[input.mode].name}: diste ${o.correctWords} golpes, recibiste ${o.errors} y causaste ${o.correctChars} de daño.`
+          : `\n${GAME_MODES[input.mode].name}: ${o.correctWords} ${GAME_MODES[input.mode].unit} correctos, ${o.errors} errores.`,
         `Experiencia ganada: +${xpGained} XP. Doblones: +${coins + bonus}. Rating: ${me.rating} → ${Math.max(0, me.rating + delta)}.`,
         newLevel > me.level ? `\n¡Subiste al nivel ${newLevel}!` : '',
         unlockedNames.length ? `Nuevos objetos en tu armería: ${unlockedNames.join(', ')}.` : '',

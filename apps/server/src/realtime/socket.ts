@@ -1,6 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
-import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema } from '@inbox/shared';
+import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema, officeInputBatchSchema } from '@inbox/shared';
 import { SESSION_COOKIE, readCookie, userIdFromToken } from '../lib/auth';
 import { setIO, toUser, userRoom, type IO } from './notify';
 import { engine } from './matchEngine';
@@ -42,6 +42,8 @@ export function attachSocket(server: HttpServer): IO {
     const userId: string = socket.data.userId;
     const joined = new Set<string>();
     const allow = limiter(30);
+    // Office Battle sends a small batch of input steps about 15 times a second.
+    const allowInput = limiter(40);
     socket.join(userRoom(userId));
     if (markConnected(userId)) void broadcastPresence(userId, true).catch(() => {});
 
@@ -78,6 +80,13 @@ export function attachSocket(server: HttpServer): IO {
       const parsed = answerSchema.safeParse(data);
       if (!parsed.success || !joined.has(parsed.data.matchId)) return;
       engine.answer(userId, parsed.data);
+    });
+
+    socket.on('office:input', (data) => {
+      if (!allowInput()) return;
+      const parsed = officeInputBatchSchema.safeParse(data);
+      if (!parsed.success || !joined.has(parsed.data.matchId)) return;
+      engine.input(userId, parsed.data);
     });
 
     socket.on('queue:join', (data) => {

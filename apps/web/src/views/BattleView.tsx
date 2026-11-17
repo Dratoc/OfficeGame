@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Wifi, WifiOff } from 'lucide-react';
 import { FINISH_LINE, GAME_MODES, RACE_LENGTH, PUZZLE_GOAL, type GameModeId, type MatchGoEvent, type MatchSummaryDto, type RoomStateEvent, type WordResultEvent } from '@inbox/shared';
@@ -10,12 +10,15 @@ import { DuelStage, type DuelEffect } from '../battle/DuelStage';
 import { ModePanel, type Mark } from '../battle/panels';
 import { RaceTrack } from '../battle/RaceTrack';
 
+const OfficeStage = lazy(() => import('../battle/OfficeStage'));
+
 const HOW_TO: Record<string, string> = {
   typing: 'Escribe cada palabra y pulsa espacio. Pegar texto no está permitido.',
   math: 'Escribe el resultado y pulsa Enter.',
   keys: 'Presiona la combinación que aparece (en Mac, ⌘ cuenta como Ctrl) o teclea los símbolos.',
   task: 'Elige la opción correcta de cada paso con el mouse o con las teclas 1, 2 y 3.',
   racing: `Escribe cada palabra y pulsa espacio. Gana quien llegue primero a ${RACE_LENGTH} palabras.`,
+  office: 'WASD o flechas para moverte, J o clic para atacar, K o clic derecho para bloquear (mantener) y Espacio para esquivar. Gana quien deje al otro K.O. o tenga más vida al final.',
   puzzle: `Completa series, encuentra al intruso, ordena letras y sigue patrones. Gana quien resuelva ${PUZZLE_GOAL} primero (opciones con el mouse o con 1, 2, 3 y 4).`,
 };
 
@@ -210,7 +213,13 @@ export function BattleView({ matchId }: { matchId: string }) {
         </div>
       )}
 
-      {(phase === 'countdown' || phase === 'playing' || phase === 'finished') && meP && opp && (
+      {mode === 'office' && (phase === 'countdown' || phase === 'playing' || phase === 'finished') && meP && opp && room?.startAt && room.endAt && (
+        <Suspense fallback={<div className="office-stage office-loading">Cargando la oficina…</div>}>
+          <OfficeStage matchId={matchId} meId={meP.user.id} players={[meP.user, opp.user]} startAt={room.startAt} endAt={room.endAt} />
+        </Suspense>
+      )}
+
+      {mode !== 'office' && (phase === 'countdown' || phase === 'playing' || phase === 'finished') && meP && opp && (
         <div className="arena">
           <div className="timer">
             <div className="timer-fill" style={{ width: `${(remaining / total) * 100}%` }} />

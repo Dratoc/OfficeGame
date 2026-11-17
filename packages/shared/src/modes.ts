@@ -19,11 +19,11 @@ export const GAME_MODES: Record<GameModeId, GameModeInfo> = {
   task: { id: 'task', name: 'Tarea Express', tagline: 'Tareas de oficina ficticias, paso a paso.', unit: 'pasos', minPlayers: 2, maxPlayers: 2, durationMs: 20_000, available: true },
   racing: { id: 'racing', name: 'Racing Battle', tagline: 'Carrera de 2 a 4 jugadores: cada palabra te acerca a la meta.', unit: 'palabras', minPlayers: 2, maxPlayers: 4, durationMs: 45_000, available: true },
   puzzle: { id: 'puzzle', name: 'Puzzle Battle', tagline: 'Series, intrusos, anagramas y patrones. De 2 a 4 jugadores.', unit: 'acertijos', minPlayers: 2, maxPlayers: 4, durationMs: 45_000, available: true },
-  office: { id: 'office', name: 'Office Battle', tagline: 'Habilidades y duelos entre personajes.', unit: 'golpes', minPlayers: 2, maxPlayers: 2, durationMs: 30_000, available: false },
+  office: { id: 'office', name: 'Office Battle', tagline: 'Pelea 3D entre avatares en la oficina: ataca, bloquea y esquiva.', unit: 'golpes', minPlayers: 2, maxPlayers: 2, durationMs: 60_000, available: true },
 };
 
 /** Modes that a player can pick today, in display order. */
-export const PLAYABLE_MODES = ['typing', 'math', 'keys', 'task', 'racing', 'puzzle'] as const;
+export const PLAYABLE_MODES = ['typing', 'math', 'keys', 'task', 'racing', 'puzzle', 'office'] as const;
 export type PlayableModeId = (typeof PLAYABLE_MODES)[number];
 
 /** Words to the finish line in Racing Battle. */

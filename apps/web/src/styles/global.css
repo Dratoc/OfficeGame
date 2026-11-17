@@ -685,3 +685,12 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .shop-foot { text-align: center; }
 .reward-coins strong { color: #8a6417; }
 @media (max-width: 700px) { .shop { padding: 16px; } .tips { flex-direction: column; align-items: flex-start; } }
+
+/* Office Battle 3D */
+.office-stage { position: relative; width: 100%; max-width: 1200px; margin: 0 auto; height: min(72vh, 680px); min-height: 360px; border-radius: 14px; overflow: hidden; background: #202638; box-shadow: 0 10px 30px rgba(20, 24, 40, 0.25); outline: none; }
+.office-stage:focus-visible { box-shadow: 0 0 0 3px var(--gold), 0 10px 30px rgba(20, 24, 40, 0.25); }
+.office-loading { display: grid; place-items: center; color: #dfe6f3; font-weight: 600; }
+.practice-levels { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.practice-levels .chip { cursor: pointer; }
+.practice-actions { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
+@media (max-width: 720px) { .office-stage { height: 64vh; min-height: 300px; border-radius: 10px; } .practice-levels { display: none; } }
