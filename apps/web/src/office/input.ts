@@ -12,6 +12,8 @@ export class Controls {
   private keys = new Set<string>();
   private atk = 0;
   private dge = 0;
+  private p1 = 0;
+  private p2 = 0;
   private mouseBlock = false;
   private touchBlock = false;
   private stick = { x: 0, z: 0, id: -1 };
@@ -23,11 +25,13 @@ export class Controls {
     const down = (e: KeyboardEvent) => {
       if (!this.enabled || (e.target as HTMLElement)?.closest?.('input, textarea')) return;
       const k = e.key.toLowerCase();
-      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'j', 'k', 'l', 'shift'].includes(k)) e.preventDefault();
+      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'j', 'k', 'l', 'shift', 'q', 'e', '1', '2'].includes(k)) e.preventDefault();
       sfx.unlock();
       if (!e.repeat) {
         if (k === 'j') this.atk = BUFFER_STEPS;
         if (k === ' ' || k === 'l' || k === 'shift') this.dge = BUFFER_STEPS;
+        if (k === 'q' || k === '1') this.p1 = BUFFER_STEPS;
+        if (k === 'e' || k === '2') this.p2 = BUFFER_STEPS;
       }
       this.keys.add(k);
     };
@@ -37,7 +41,7 @@ export class Controls {
       this.mouseBlock = false;
     };
     const mdown = (e: MouseEvent) => {
-      if (!this.enabled || (e.target as HTMLElement).closest('.ob-btns, .ob-stick')) return;
+      if (!this.enabled || (e.target as HTMLElement).closest('.ob-btns, .ob-stick, .ob-power')) return;
       sfx.unlock();
       if (e.button === 0) this.atk = BUFFER_STEPS;
       if (e.button === 2) this.mouseBlock = true;
@@ -46,6 +50,17 @@ export class Controls {
       if (e.button === 2) this.mouseBlock = false;
     };
     const menu = (e: Event) => e.preventDefault();
+    // Power buttons on the HUD work with a click or a tap.
+    const power = (e: PointerEvent) => {
+      const slot = (e.target as HTMLElement).closest<HTMLElement>('.ob-power')?.dataset.slot;
+      if (!this.enabled || slot === undefined) return;
+      e.preventDefault();
+      sfx.unlock();
+      if (slot === '0') this.p1 = BUFFER_STEPS;
+      else this.p2 = BUFFER_STEPS;
+    };
+    root.addEventListener('pointerdown', power);
+    this.off.push(() => root.removeEventListener('pointerdown', power));
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     window.addEventListener('blur', blur);
@@ -163,9 +178,13 @@ export class Controls {
       atk: this.enabled && this.atk > 0,
       blk: this.enabled && (k.has('k') || this.mouseBlock || this.touchBlock),
       dge: this.enabled && this.dge > 0,
+      p1: this.enabled && this.p1 > 0,
+      p2: this.enabled && this.p2 > 0,
     };
     this.atk = Math.max(0, this.atk - 1);
     this.dge = Math.max(0, this.dge - 1);
+    this.p1 = Math.max(0, this.p1 - 1);
+    this.p2 = Math.max(0, this.p2 - 1);
     return input;
   }
 

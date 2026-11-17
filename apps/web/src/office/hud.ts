@@ -1,4 +1,4 @@
-import { OFFICE } from '@inbox/shared';
+import { OFFICE, POWERS, type PowerId } from '@inbox/shared';
 import type { ArenaFrame, ArenaPlayer } from './arena';
 
 const CSS = `
@@ -33,6 +33,24 @@ const CSS = `
 .ob-btns button.atk{grid-column:2;grid-row:1 / span 2;width:76px;height:76px;align-self:center;background:rgba(255,93,108,.6)}
 .ob-btns button.on{background:rgba(255,255,255,.45)}
 @media (max-width:640px){.ob-help{display:none}.ob-cd{display:none}.ob-name{font-size:13px}.ob-bar{height:16px}.ob-timer{font-size:18px;min-width:48px;padding:4px 8px}.ob-stick{width:96px;height:96px;left:10px;bottom:10px}.ob-stick i{width:42px;height:42px;margin:-21px}.ob-btns{right:10px;bottom:10px;grid-template-columns:repeat(2,52px);gap:8px}.ob-btns button{width:52px;height:52px;font-size:10px}.ob-btns button.atk{width:62px;height:62px}}
+
+.ob-rivals{display:flex;flex-direction:column;gap:6px;align-items:flex-end;min-width:0}
+.ob-rivals .ob-side{width:100%;align-items:flex-end}
+.ob-rivals.many .ob-bar{height:14px;max-width:220px}
+.ob-rivals.many .ob-bar b{font-size:10px}
+.ob-rivals.many .ob-name{font-size:13px}
+.ob-side.out{opacity:.45}
+.ob-side.out .ob-name::after{content:' · fuera';font-weight:600}
+.ob-powers{position:absolute;bottom:44px;left:50%;transform:translateX(-50%);display:flex;gap:10px;pointer-events:auto}
+.ob-power{position:relative;width:64px;height:64px;border-radius:14px;border:2px solid rgba(255,255,255,.85);background:rgba(10,12,20,.72);color:#fff;display:grid;place-items:center;padding:0;cursor:pointer;overflow:hidden;font:inherit;touch-action:none}
+.ob-power .ico{font-size:24px;line-height:1}
+.ob-power .key{position:absolute;top:2px;left:5px;font-size:11px;font-weight:900;opacity:.9}
+.ob-power .nm{position:absolute;bottom:2px;left:2px;right:2px;font-size:9px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ob-power .cd{position:absolute;inset:0;background:conic-gradient(rgba(10,12,20,.78) var(--p,0%), transparent 0);display:grid;place-items:center;font-weight:900;font-size:18px}
+.ob-power.ready{box-shadow:0 0 0 2px #ffd95e inset}
+.ob-spect{position:absolute;left:50%;top:64%;transform:translateX(-50%);background:rgba(10,12,20,.7);padding:6px 12px;border-radius:10px;font-weight:700;font-size:14px;display:none}
+.ob-spect.on{display:block}
+@media (max-width:640px){.ob-powers{bottom:12px;gap:6px}.ob-power{width:48px;height:48px;border-radius:10px}.ob-power .ico{font-size:18px}.ob-power .nm{display:none}.ob-rivals.many .ob-bar{max-width:120px}}
 `;
 
 let styled = false;
@@ -53,6 +71,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?:
 
 interface Side {
   id: string;
+  el: HTMLElement;
   fill: HTMLElement;
   lag: HTMLElement;
   text: HTMLElement;
@@ -60,7 +79,26 @@ interface Side {
   hp: number;
 }
 
-/** Health bars, clock and big messages, drawn as HTML over the 3D canvas. */
+/** A symbol per power, drawn on its button. */
+const POWER_ICON: Record<PowerId, string> = {
+  stapler: '📎',
+  coffee: '☕',
+  folders: '🗂️',
+  sprint: '⚡',
+  meeting: '📣',
+  bandage: '🩹',
+};
+
+const SHORT: Record<PowerId, string> = {
+  stapler: 'Grapas',
+  coffee: 'Café',
+  folders: 'Carpetas',
+  sprint: 'Viernes',
+  meeting: 'Reunión',
+  bandage: 'Curita',
+};
+
+/** Health bars, clock, power buttons and big messages, drawn as HTML over the 3D canvas. */
 export class Hud {
   readonly root: HTMLElement;
   private sides: Side[] = [];
@@ -68,17 +106,20 @@ export class Hud {
   private bannerEl: HTMLElement;
   private bannerTimer: ReturnType<typeof setTimeout> | null = null;
   private meId: string | null;
+  private powersEl: HTMLElement;
+  private slots: { el: HTMLButtonElement; cd: HTMLElement; id: PowerId | null }[] = [];
+  private spect: HTMLElement;
 
-  constructor(container: HTMLElement, players: ArenaPlayer[], colors: { me: string; rival: string }) {
+  constructor(container: HTMLElement, players: ArenaPlayer[]) {
     injectStyles();
     container.classList.add('ob-root');
     this.root = el('div', 'ob-hud', container);
     const top = el('div', 'ob-top', this.root);
     const me = players.find((p) => p.me) ?? players[0]!;
-    const rival = players.find((p) => p !== me)!;
+    const rivals = players.filter((p) => p !== me);
     this.meId = me.id;
-    const mkSide = (p: ArenaPlayer, right: boolean) => {
-      const side = el('div', `ob-side ${right ? 'right' : ''}`, top);
+    const mkSide = (p: ArenaPlayer, parent: HTMLElement, right: boolean): Side => {
+      const side = el('div', `ob-side ${right ? 'right' : ''}`, parent);
       const name = el('div', 'ob-name', side);
       name.textContent = p.name;
       if (p.me) {
@@ -88,21 +129,33 @@ export class Hud {
       const bar = el('div', 'ob-bar', side);
       const lag = el('i', 'lag', bar);
       const fill = el('i', '', bar);
-      fill.style.background = `linear-gradient(180deg, ${p.me ? colors.me : colors.rival}, ${p.me ? '#1b7fb8' : '#b8323f'})`;
+      fill.style.background = `linear-gradient(180deg, ${p.color ?? '#3ec1ff'}, color-mix(in srgb, ${p.color ?? '#3ec1ff'} 60%, #000))`;
       const text = el('b', '', bar);
       text.textContent = `${OFFICE.maxHp}`;
       const cd = p.me ? el('span', 'ob-cd', side) : null;
-      return { id: p.id, fill, lag, text, cd, hp: -1 };
+      return { id: p.id, el: side, fill, lag, text, cd, hp: -1 };
     };
-    this.sides.push(mkSide(me, false));
+    this.sides.push(mkSide(me, top, false));
     this.timer = el('div', 'ob-timer', top);
     this.timer.textContent = '—';
-    this.sides.push(mkSide(rival, true));
+    const list = el('div', `ob-rivals ${rivals.length > 1 ? 'many' : ''}`, top);
+    for (const r of rivals) this.sides.push(mkSide(r, list, true));
 
     this.bannerEl = el('div', 'ob-banner', this.root);
+    this.spect = el('div', 'ob-spect', this.root);
+    this.spect.textContent = 'Quedaste fuera. Mira cómo termina la pelea.';
+    this.powersEl = el('div', 'ob-powers', this.root);
+    for (let i = 0; i < 2; i++) {
+      const b = el('button', 'ob-power', this.powersEl);
+      b.type = 'button';
+      b.dataset.slot = String(i);
+      b.hidden = true;
+      const cd = el('span', 'cd', b);
+      this.slots.push({ el: b, cd, id: null });
+    }
     const help = el('div', 'ob-help', this.root);
     help.innerHTML =
-      '<span><kbd>WASD</kbd>moverse</span><span><kbd>J</kbd>o clic: atacar</span><span><kbd>K</kbd>o clic derecho: bloquear</span><span><kbd>Espacio</kbd>esquivar</span>';
+      '<span><kbd>WASD</kbd>moverse</span><span><kbd>J</kbd>o clic: atacar</span><span><kbd>K</kbd>o clic derecho: bloquear</span><span><kbd>Espacio</kbd>esquivar</span><span><kbd>Q</kbd><kbd>E</kbd>poderes</span>';
   }
 
   update(frame: ArenaFrame) {
@@ -115,8 +168,36 @@ export class Hud {
         s.fill.style.transform = `scaleX(${k})`;
         s.lag.style.transform = `scaleX(${k})`;
         s.text.textContent = `${Math.ceil(f.hp)}`;
+        s.el.classList.toggle('out', f.hp <= 0 && s.id !== this.meId);
       }
       if (s.cd && s.id === this.meId) s.cd.textContent = f.dodgeCd > 0 ? `Esquivar listo en ${f.dodgeCd.toFixed(1)} s` : 'Esquivar listo';
+    }
+    const me = frame.fighters.find((f) => f.id === this.meId);
+    if (me) {
+      this.spect.classList.toggle('on', me.hp <= 0 && frame.fighters.filter((f) => f.hp > 0).length > 1);
+      me.powers.forEach((id, i) => {
+        const slot = this.slots[i];
+        if (!slot) return;
+        if (slot.id !== id) {
+          slot.id = id;
+          slot.el.hidden = false;
+          slot.el.title = `${POWERS[id].name}: ${POWERS[id].description}`;
+          slot.el.setAttribute('aria-label', `${POWERS[id].name} (${i === 0 ? 'Q' : 'E'})`);
+          slot.el.querySelectorAll('.ico, .key, .nm').forEach((n) => n.remove());
+          const ico = el('span', 'ico');
+          ico.textContent = POWER_ICON[id];
+          const key = el('span', 'key');
+          key.textContent = i === 0 ? 'Q' : 'E';
+          const nm = el('span', 'nm');
+          nm.textContent = SHORT[id];
+          slot.el.prepend(ico, key, nm);
+        }
+        const left = me.cds[i] ?? 0;
+        const pct = Math.min(100, (left / POWERS[id].cooldown) * 100);
+        slot.cd.style.setProperty('--p', `${pct}%`);
+        slot.cd.textContent = left > 0.05 ? String(Math.ceil(left)) : '';
+        slot.el.classList.toggle('ready', left <= 0.05 && me.hp > 0);
+      });
     }
     if (frame.remainingMs !== null) {
       const secs = Math.max(0, frame.remainingMs / 1000);
@@ -124,7 +205,6 @@ export class Hud {
       this.timer.classList.toggle('low', secs < 10);
     }
   }
-
   /** Big centered message. Stays until replaced when ms is 0. */
   banner(text: string, sub = '', ms = 1200) {
     if (this.bannerTimer) clearTimeout(this.bannerTimer);

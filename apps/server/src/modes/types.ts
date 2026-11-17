@@ -30,7 +30,8 @@ export interface GameMode<State, Action, ActionResult, Frame = never> {
   durationMs: number;
   minPlayers: number;
   maxPlayers: number;
-  createState(seed: number, playerIds: string[]): State;
+  /** options: what each player picked in the lobby (Office Battle powers), by user id. */
+  createState(seed: number, playerIds: string[], options?: ReadonlyMap<string, unknown>): State;
   /** prompts go to every player when the match goes live; answers stay on the server. */
   startPayload(state: State): { prompts: Prompt[]; answers: string[] };
   applyAction(state: State, userId: string, action: Action, ctx: ActionContext): ActionResult;

@@ -1,4 +1,4 @@
-import type { PlayableModeId } from '@inbox/shared';
+import type { LobbyState, PlayableModeId } from '@inbox/shared';
 import { useEffect } from 'react';
 import { TopBar } from './components/TopBar';
 import { Sidebar } from './components/Sidebar';
@@ -12,6 +12,7 @@ import { ResultLoader } from './views/ResultScene';
 import { ArmoryView } from './views/ArmoryView';
 import { ShopView } from './views/ShopView';
 import { PracticeView } from './views/PracticeView';
+import { RoomsView } from './views/RoomsView';
 import { RankingView } from './views/RankingView';
 import { ProfileView } from './views/ProfileView';
 import { CalendarView } from './views/CalendarView';
@@ -51,11 +52,34 @@ function useRealtime(enabled: boolean) {
       const many = (opponents?.length ?? 1) > 1;
       st.toast(
         many
-          ? { title: '¡Carrera lista!', body: `Corres contra ${opponents!.map((o) => o.username).join(', ')}.`, tone: 'success' }
+          ? { title: st.queue.mode === 'office' ? '¡Sala lista!' : '¡Carrera lista!', body: `${st.queue.mode === 'office' ? 'Peleas' : 'Corres'} contra ${opponents!.map((o) => o.username).join(', ')}.`, tone: 'success' }
           : { title: '¡Rival encontrado!', body: `Te enfrentas a ${opponent.username}.`, tone: 'success' },
       );
       st.go({ kind: 'battle', matchId });
     };
+    const onLobby = (lobby: LobbyState | null) => useApp.setState({ lobby });
+    const onLobbyStarted = ({ matchId }: { matchId: string }) => {
+      useApp.setState({ lobby: null });
+      useApp.getState().toast({ title: '¡La pelea empieza!', body: 'Elige tus poderes y prepárate.', tone: 'success' });
+      useApp.getState().go({ kind: 'battle', matchId });
+    };
+    const onInvited = ({ code, from }: { code: string; from: { username: string } }) =>
+      useApp.getState().toast({
+        title: `${from.username} te invita a una sala de Office Battle`,
+        body: `Código ${code}`,
+        tone: 'success',
+        action: {
+          label: 'Unirme',
+          run: () => {
+            void getSocket()
+              .emitWithAck('lobby:join', { code })
+              .then((r) => (r.ok ? useApp.getState().go({ kind: 'rooms' }) : useApp.getState().toast({ title: r.error ?? 'No se pudo entrar', tone: 'error' })));
+          },
+        },
+      });
+    s.on('lobby:state', onLobby);
+    s.on('lobby:started', onLobbyStarted);
+    s.on('lobby:invited', onInvited);
     const onSocial = () => void useApp.getState().refreshSocial();
     const onPresence = () => useApp.setState((st) => ({ socialVersion: st.socialVersion + 1 }));
     s.on('queue:status', onQueue);
@@ -68,6 +92,9 @@ function useRealtime(enabled: boolean) {
     s.on('connect_error', onError);
     if (s.disconnected) s.connect();
     return () => {
+      s.off('lobby:state', onLobby);
+      s.off('lobby:started', onLobbyStarted);
+      s.off('lobby:invited', onInvited);
       s.off('queue:status', onQueue);
       s.off('queue:matched', onMatched);
       s.off('friends:changed', onSocial);
@@ -111,6 +138,7 @@ export function App() {
         {view.kind === 'contacts' && <ContactsView />}
         {view.kind === 'shop' && <ShopView />}
         {view.kind === 'practice' && <PracticeView />}
+        {view.kind === 'rooms' && <RoomsView />}
       </main>
       <ComposeDialog />
       <QuickMatch />

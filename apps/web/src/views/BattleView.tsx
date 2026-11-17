@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Wifi, WifiOff } from 'lucide-react';
-import { FINISH_LINE, GAME_MODES, RACE_LENGTH, PUZZLE_GOAL, type GameModeId, type MatchGoEvent, type MatchSummaryDto, type RoomStateEvent, type WordResultEvent } from '@inbox/shared';
+import { FINISH_LINE, GAME_MODES, RACE_LENGTH, PUZZLE_GOAL, type GameModeId, type MatchGoEvent, type MatchSummaryDto, type RoomStateEvent, type WordResultEvent, type PowerId } from '@inbox/shared';
 import { Avatar } from '../avatar/Avatar';
 import { getSocket, serverNow, syncClock } from '../lib/socket';
 import { useApp } from '../lib/store';
@@ -9,6 +9,7 @@ import { ResultScene } from './ResultScene';
 import { DuelStage, type DuelEffect } from '../battle/DuelStage';
 import { ModePanel, type Mark } from '../battle/panels';
 import { RaceTrack } from '../battle/RaceTrack';
+import { LoadoutBadges, PowerPicker, saveLoadout, savedLoadout } from '../battle/PowerPicker';
 
 const OfficeStage = lazy(() => import('../battle/OfficeStage'));
 
@@ -18,7 +19,7 @@ const HOW_TO: Record<string, string> = {
   keys: 'Presiona la combinación que aparece (en Mac, ⌘ cuenta como Ctrl) o teclea los símbolos.',
   task: 'Elige la opción correcta de cada paso con el mouse o con las teclas 1, 2 y 3.',
   racing: `Escribe cada palabra y pulsa espacio. Gana quien llegue primero a ${RACE_LENGTH} palabras.`,
-  office: 'WASD o flechas para moverte, J o clic para atacar, K o clic derecho para bloquear (mantener) y Espacio para esquivar. Gana quien deje al otro K.O. o tenga más vida al final.',
+  office: 'WASD o flechas para moverte, J o clic para atacar, K o clic derecho para bloquear (mantener), Espacio para esquivar y Q / E para tus poderes. Gana el último en pie, o quien tenga más vida al final.',
   puzzle: `Completa series, encuentra al intruso, ordena letras y sigue patrones. Gana quien resuelva ${PUZZLE_GOAL} primero (opciones con el mouse o con 1, 2, 3 y 4).`,
 };
 
@@ -29,6 +30,8 @@ export function BattleView({ matchId }: { matchId: string }) {
   const [rtt, setRtt] = useState<number | null>(null);
   const [game, setGame] = useState<MatchGoEvent | null>(null);
   const [summary, setSummary] = useState<MatchSummaryDto | null>(null);
+  const [loadout, setLoadout] = useState<PowerId[]>(savedLoadout);
+  const sentLoadout = useRef(false);
   const [marks, setMarks] = useState<Mark[]>([]);
   const [progress, setProgress] = useState<Record<string, { correctWords: number; errors: number }>>({});
   const [effects, setEffects] = useState<DuelEffect[]>([]);
@@ -107,6 +110,20 @@ export function BattleView({ matchId }: { matchId: string }) {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
+
+  // Office Battle: tell the server which powers you bring, as soon as you are in the room.
+  useEffect(() => {
+    if (room?.mode !== 'office' || room.phase !== 'waiting' || sentLoadout.current || loadout.length !== 2) return;
+    sentLoadout.current = true;
+    getSocket().emit('room:loadout', { matchId, powers: loadout });
+  }, [room?.mode, room?.phase, loadout, matchId]);
+
+  const pickPowers = (next: PowerId[]) => {
+    setLoadout(next);
+    if (next.length !== 2) return;
+    saveLoadout(next);
+    getSocket().emit('room:loadout', { matchId, powers: next });
+  };
 
   const submit = useCallback(
     (answer: string) => {
@@ -193,18 +210,20 @@ export function BattleView({ matchId }: { matchId: string }) {
                     <Avatar config={p.user.avatar} pose={p.ready ? 'wave' : 'idle'} size={everyone.length > 2 ? 140 : 190} emote={p.ready ? 'cheer' : undefined} />
                     <strong>{p.user.username}</strong>
                     <span className={`ready-tag ${p.ready ? 'on' : ''} ${!p.connected ? 'off' : ''}`}>{!p.connected ? 'Desconectado' : p.ready ? '¡Listo!' : 'Preparándose…'}</span>
+                    {mode === 'office' && <LoadoutBadges loadout={p.loadout} />}
                   </motion.div>
                 ),
             )}
             {everyone.length <= 2 && <div className="lobby-vs">VS</div>}
           </div>
+          {mode === 'office' && <PowerPicker value={loadout} onChange={pickPowers} disabled={meP?.ready} />}
           <div className="lobby-actions">
             {meP?.ready ? (
               <p className="muted">
-                {everyone.length > 2 ? 'Esperando al resto. La carrera comienza cuando todos estén listos.' : `Esperando a ${opp?.user.username}. La batalla comienza cuando ambos estén listos.`}
+                {everyone.length > 2 ? `Esperando al resto. La ${mode === 'office' ? 'pelea' : 'carrera'} comienza cuando todos estén listos.` : `Esperando a ${opp?.user.username}. La batalla comienza cuando ambos estén listos.`}
               </p>
             ) : (
-              <button className="btn btn-primary btn-lg" onClick={() => getSocket().emit('room:ready', { matchId })}>
+              <button className="btn btn-primary btn-lg" disabled={mode === 'office' && loadout.length !== 2} onClick={() => getSocket().emit('room:ready', { matchId })}>
                 ¡Estoy listo!
               </button>
             )}
@@ -215,7 +234,7 @@ export function BattleView({ matchId }: { matchId: string }) {
 
       {mode === 'office' && (phase === 'countdown' || phase === 'playing' || phase === 'finished') && meP && opp && room?.startAt && room.endAt && (
         <Suspense fallback={<div className="office-stage office-loading">Cargando la oficina…</div>}>
-          <OfficeStage matchId={matchId} meId={meP.user.id} players={[meP.user, opp.user]} startAt={room.startAt} endAt={room.endAt} />
+          <OfficeStage matchId={matchId} meId={meP.user.id} players={everyone.map((p) => p.user)} startAt={room.startAt} endAt={room.endAt} />
         </Suspense>
       )}
 
