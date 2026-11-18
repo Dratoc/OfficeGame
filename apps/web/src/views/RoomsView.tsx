@@ -7,10 +7,11 @@ import {
   Forklift,
   LogOut,
   Send,
+  Skull,
   Swords,
   Users,
 } from "lucide-react";
-import { GAME_MODES, LOBBY_CODE_LENGTH, LOBBY_MODES, type FriendsDto, type LobbyModeId } from "@inbox/shared";
+import { GAME_MODES, LOBBY_CODE_LENGTH, LOBBY_MODES, type FriendsDto, type LiveMatch, type LobbyModeId } from "@inbox/shared";
 import { Bust, LevelBadge } from "../components/Bits";
 import { useApp } from "../lib/store";
 import { api } from "../lib/api";
@@ -29,6 +30,12 @@ const MODE_TEXT: Record<LobbyModeId, { short: string; blurb: string; start: stri
     start: "Abrir el local",
     wait: "El anfitrión abre el local",
   },
+  zombies: {
+    short: "Zona Zombi",
+    blurb: "Cooperativo: sobrevivan a las hordas con armas, autos y fortalezas. Fuego amigo activado.",
+    start: "Empezar a sobrevivir",
+    wait: "El anfitrión empieza la partida",
+  },
   chairs: {
     short: "Carrera de sillas",
     blurb: "3 vueltas en silla de oficina: dispara hacia adelante y acelera con cada acierto.",
@@ -38,7 +45,7 @@ const MODE_TEXT: Record<LobbyModeId, { short: string; blurb: string; start: stri
 };
 
 function ModeIcon({ mode, size = 16 }: { mode: LobbyModeId; size?: number }) {
-  return mode === "chairs" ? <Armchair size={size} /> : mode === "sales" ? <Forklift size={size} /> : <Swords size={size} />;
+  return mode === "chairs" ? <Armchair size={size} /> : mode === "sales" ? <Forklift size={size} /> : mode === "zombies" ? <Skull size={size} /> : <Swords size={size} />;
 }
 
 /** Choice between the modes a private room can play. */
@@ -63,6 +70,91 @@ function ModeChoice({ value, onChange, disabled }: { value: LobbyModeId; onChang
         </button>
       ))}
     </div>
+  );
+}
+
+/** Zona Zombi matches being played right now: anyone can start one or jump into one. */
+function PublicZombies() {
+  const { go, toast } = useApp();
+  const [live, setLive] = useState<LiveMatch[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      getSocket()
+        .emitWithAck("zombies:list")
+        .then((l) => alive && setLive(l))
+        .catch(() => alive && setLive([]));
+    void load();
+    const t = setInterval(load, 4000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
+
+  const start = async () => {
+    setBusy(true);
+    try {
+      const r = await getSocket().emitWithAck("zombies:start");
+      if (r.ok && r.matchId) go({ kind: "battle", matchId: r.matchId });
+      else toast({ title: r.error ?? "No se pudo crear la partida", tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const join = async (matchId: string) => {
+    setBusy(true);
+    try {
+      const r = await getSocket().emitWithAck("zombies:join", { matchId });
+      if (r.ok) go({ kind: "battle", matchId });
+      else toast({ title: r.error ?? "No se pudo entrar", tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="rooms-card rooms-live">
+      <h3>
+        <Skull size={18} /> Zona Zombi: partidas públicas
+      </h3>
+      <p className="muted">
+        Cualquiera puede entrar a una partida mientras no hayan caído todos. Cada
+        jugador que entra trae más zombis y más duros. Fuego amigo activado.
+      </p>
+      <button className="btn btn-primary" disabled={busy} onClick={() => void start()}>
+        <Skull size={16} /> Empezar una partida pública
+      </button>
+      {live === null ? (
+        <p className="muted small">Buscando partidas…</p>
+      ) : live.length === 0 ? (
+        <p className="muted small">No hay partidas en curso. Empieza una y otros podrán unirse.</p>
+      ) : (
+        <ul className="rooms-live-list">
+          {live.map((m) => (
+            <li key={m.matchId}>
+              <div className="rooms-live-who">
+                {m.players.slice(0, 4).map((p) => (
+                  <Bust key={p.id} user={p} size={30} />
+                ))}
+              </div>
+              <span>
+                <strong>{m.players.map((p) => p.username).join(", ")}</strong>
+                <small>
+                  {m.wave > 0 ? `Oleada ${m.wave}` : "Preparándose"} · {m.players.length} de {m.max} ·{" "}
+                  {Math.floor(m.seconds / 60)} min
+                </small>
+              </span>
+              <button className="btn btn-ghost btn-sm" disabled={busy || m.players.length >= m.max} onClick={() => void join(m.matchId)}>
+                {m.players.length >= m.max ? "Llena" : "Unirme"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -113,10 +205,11 @@ export function RoomsView() {
           </h2>
           <p className="muted">
             Arma una partida privada de hasta 4 jugadores: una pelea en la
-            oficina, una carrera de sillas o un turno cooperativo vendiendo
-            maquinaria.
+            oficina, una carrera de sillas, un turno cooperativo vendiendo
+            maquinaria o una partida de Zona Zombi.
           </p>
         </header>
+        <PublicZombies />
         <div className="rooms-start">
           <section className="rooms-card">
             <h3>Crear una sala</h3>

@@ -71,8 +71,8 @@ function useRealtime(enabled: boolean) {
     const onLobby = (lobby: LobbyState | null) => useApp.setState({ lobby });
     const onLobbyStarted = ({ matchId, mode }: { matchId: string; mode?: LobbyModeId }) => {
       const race = mode === 'chairs';
-      const title = mode === 'sales' ? '¡Abre el local!' : race ? '¡La carrera empieza!' : '¡La pelea empieza!';
-      const body = mode === 'sales' ? 'Los clientes ya vienen en camino.' : race ? 'Súbete a tu silla y prepárate.' : 'Elige tus poderes y prepárate.';
+      const title = mode === 'zombies' ? '¡Vienen los zombis!' : mode === 'sales' ? '¡Abre el local!' : race ? '¡La carrera empieza!' : '¡La pelea empieza!';
+      const body = mode === 'zombies' ? 'Compra armas y bloquea las puertas.' : mode === 'sales' ? 'Los clientes ya vienen en camino.' : race ? 'Súbete a tu silla y prepárate.' : 'Elige tus poderes y prepárate.';
       useApp.setState({ lobby: null });
       useApp.getState().toast({ title, body, tone: 'success' });
       useApp.getState().go({ kind: 'battle', matchId });
