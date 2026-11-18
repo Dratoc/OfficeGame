@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { GAME_MODES, LOBBY_CODE_ALPHABET, LOBBY_CODE_LENGTH, type LobbyState } from '@inbox/shared';
+import { GAME_MODES, LOBBY_CODE_ALPHABET, LOBBY_CODE_LENGTH, type LobbyModeId, type LobbyState } from '@inbox/shared';
 import { createMatch } from '../lib/matches';
 import { getPublicUser } from '../lib/users';
 import { friendIds } from '../lib/friends';
@@ -9,17 +9,19 @@ interface Lobby {
   code: string;
   hostId: string;
   members: string[];
+  mode: LobbyModeId;
 }
 
 /**
- * Private Office Battle rooms. A host creates a room and shares its code (or invites friends);
- * up to four players gather, and the host starts the fight, which then runs like any match.
+ * Private rooms for Office Battle or Chair Race. A host creates a room and shares its code (or
+ * invites friends); up to four players gather, the host picks the mode and starts the match,
+ * which then runs like any other.
  * Rooms live in memory in the process that runs the matches.
  */
 export class Lobbies {
   private byCode = new Map<string, Lobby>();
   private byUser = new Map<string, Lobby>();
-  readonly max = GAME_MODES.office.maxPlayers;
+  readonly max = Math.min(GAME_MODES.office.maxPlayers, GAME_MODES.chairs.maxPlayers);
 
   private newCode(): string {
     for (;;) {
@@ -35,7 +37,7 @@ export class Lobbies {
 
   private async state(lobby: Lobby): Promise<LobbyState> {
     const members = await Promise.all(lobby.members.map((id) => getPublicUser(id)));
-    return { code: lobby.code, hostId: lobby.hostId, members: members.filter((m) => m !== null), max: this.max };
+    return { code: lobby.code, mode: lobby.mode, hostId: lobby.hostId, members: members.filter((m) => m !== null), max: this.max };
   }
 
   private async announce(lobby: Lobby) {
@@ -43,9 +45,9 @@ export class Lobbies {
     for (const id of lobby.members) toUser(id, 'lobby:state', state);
   }
 
-  async create(userId: string): Promise<string> {
+  async create(userId: string, mode: LobbyModeId = 'office'): Promise<string> {
     this.leave(userId);
-    const lobby: Lobby = { code: this.newCode(), hostId: userId, members: [userId] };
+    const lobby: Lobby = { code: this.newCode(), hostId: userId, members: [userId], mode };
     this.byCode.set(lobby.code, lobby);
     this.byUser.set(userId, lobby);
     await this.announce(lobby);
@@ -65,6 +67,14 @@ export class Lobbies {
     this.byUser.set(userId, lobby);
     await this.announce(lobby);
     return null;
+  }
+
+  /** The host changes what the room will play. */
+  async setMode(userId: string, mode: LobbyModeId): Promise<void> {
+    const lobby = this.byUser.get(userId);
+    if (!lobby || lobby.hostId !== userId || lobby.mode === mode) return;
+    lobby.mode = mode;
+    await this.announce(lobby);
   }
 
   leave(userId: string) {
@@ -91,10 +101,10 @@ export class Lobbies {
     const members = [...lobby.members];
     this.byCode.delete(lobby.code);
     for (const id of members) this.byUser.delete(id);
-    const matchId = await createMatch('office', members);
+    const matchId = await createMatch(lobby.mode, members);
     for (const id of members) {
       toUser(id, 'lobby:state', null);
-      toUser(id, 'lobby:started', { matchId });
+      toUser(id, 'lobby:started', { matchId, mode: lobby.mode });
     }
     return null;
   }
@@ -105,7 +115,7 @@ export class Lobbies {
     if (!lobby || lobby.members.includes(friendId)) return;
     if (!(await friendIds(userId)).includes(friendId)) return;
     const from = await getPublicUser(userId);
-    if (from) toUser(friendId, 'lobby:invited', { code: lobby.code, from });
+    if (from) toUser(friendId, 'lobby:invited', { code: lobby.code, from, mode: lobby.mode });
   }
 }
 

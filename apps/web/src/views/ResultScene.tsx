@@ -90,10 +90,14 @@ export function ResultScene({ summary }: { summary: MatchSummaryDto }) {
             : won
               ? summary.mode === 'racing'
                 ? `Llegaste primero entre ${summary.participants.length} corredores. ¡Nadie escribe más rápido en este piso!`
+                : summary.mode === 'chairs'
+                ? `Primera silla en la meta entre ${summary.participants.length}. Nadie rueda más rápido en este piso.`
                 : `Primer lugar entre ${summary.participants.length} jugadores. El consejo real te nombra estratega.`
-              : `Llegaste en el ${mine.placement}.º lugar de ${summary.participants.length}. ${byPlace[0]!.user.username} se llevó ${summary.mode === 'racing' ? 'la carrera' : 'la partida'}.`
+              : `Llegaste en el ${mine.placement}.º lugar de ${summary.participants.length}. ${byPlace[0]!.user.username} se llevó ${summary.mode === 'racing' || summary.mode === 'chairs' ? 'la carrera' : 'la partida'}.`
           : won
-          ? `Derrotaste a ${other?.user.username ?? 'tu rival'}. El Departamento de Duelos toma nota.`
+          ? summary.mode === 'chairs'
+            ? `Le ganaste la carrera a ${other?.user.username ?? 'tu rival'}. Recursos Humanos pide no repetirlo en el pasillo.`
+            : `Derrotaste a ${other?.user.username ?? 'tu rival'}. El Departamento de Duelos toma nota.`
           : draw
             ? 'Ni vencedores ni vencidos. Muy sinérgico.'
             : mine.result === 'abandon'
@@ -138,7 +142,14 @@ export function ResultScene({ summary }: { summary: MatchSummaryDto }) {
             </tr>
           </thead>
           <tbody>
-            {(summary.mode === 'office'
+            {(summary.mode === 'chairs'
+              ? ([
+                  ['Vueltas completadas', 'correctChars'],
+                  ['Bolas de papel acertadas', 'correctWords'],
+                  ['Veces que te dieron', 'errors'],
+                  ['Puntería', 'accuracy'],
+                ] as const)
+              : summary.mode === 'office'
               ? ([
                   ['Golpes dados', 'correctWords'],
                   ['Golpes recibidos', 'errors'],

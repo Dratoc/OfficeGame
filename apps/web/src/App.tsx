@@ -1,4 +1,4 @@
-import type { LobbyState, PlayableModeId } from '@inbox/shared';
+import { GAME_MODES, type LobbyModeId, type LobbyState, type PlayableModeId } from '@inbox/shared';
 import { useEffect } from 'react';
 import { TopBar } from './components/TopBar';
 import { Sidebar } from './components/Sidebar';
@@ -69,20 +69,24 @@ function useRealtime(enabled: boolean) {
       });
     };
     const onLobby = (lobby: LobbyState | null) => useApp.setState({ lobby });
-    const onLobbyStarted = ({ matchId }: { matchId: string }) => {
+    const onLobbyStarted = ({ matchId, mode }: { matchId: string; mode?: LobbyModeId }) => {
+      const race = mode === 'chairs';
+      const title = race ? '¡La carrera empieza!' : '¡La pelea empieza!';
+      const body = race ? 'Súbete a tu silla y prepárate.' : 'Elige tus poderes y prepárate.';
       useApp.setState({ lobby: null });
-      useApp.getState().toast({ title: '¡La pelea empieza!', body: 'Elige tus poderes y prepárate.', tone: 'success' });
+      useApp.getState().toast({ title, body, tone: 'success' });
       useApp.getState().go({ kind: 'battle', matchId });
-      backgroundAlert({ title: '¡La pelea empieza!', body: 'Elige tus poderes y prepárate.', tag: `match:${matchId}`, important: true });
+      backgroundAlert({ title, body, tag: `match:${matchId}`, important: true });
     };
     const joinRoom = (code: string) =>
       void getSocket()
         .emitWithAck('lobby:join', { code })
         .then((r) => (r.ok ? useApp.getState().go({ kind: 'rooms' }) : useApp.getState().toast({ title: r.error ?? 'No se pudo entrar', tone: 'error' })));
-    const onInvited = ({ code, from }: { code: string; from: { username: string } }) => {
-      backgroundAlert({ title: `${from.username} te invita a una sala de Office Battle`, body: `Código ${code}. Haz clic para unirte.`, tag: `invite:${code}`, important: true, onClick: () => joinRoom(code) });
+    const onInvited = ({ code, from, mode }: { code: string; from: { username: string }; mode?: LobbyModeId }) => {
+      const game = GAME_MODES[mode ?? 'office'].name;
+      backgroundAlert({ title: `${from.username} te invita a una sala de ${game}`, body: `Código ${code}. Haz clic para unirte.`, tag: `invite:${code}`, important: true, onClick: () => joinRoom(code) });
       useApp.getState().toast({
-        title: `${from.username} te invita a una sala de Office Battle`,
+        title: `${from.username} te invita a una sala de ${game}`,
         body: `Código ${code}`,
         tone: 'success',
         action: { label: 'Unirme', run: () => joinRoom(code) },

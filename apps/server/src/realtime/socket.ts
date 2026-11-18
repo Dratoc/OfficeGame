@@ -1,6 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
-import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema, officeInputBatchSchema, loadoutPickSchema, lobbyCodeSchema, lobbyInviteSchema } from '@inbox/shared';
+import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema, officeInputBatchSchema, chairsInputBatchSchema, lobbyModeSchema, loadoutPickSchema, lobbyCodeSchema, lobbyInviteSchema } from '@inbox/shared';
 import { SESSION_COOKIE, readCookie, userIdFromToken } from '../lib/auth';
 import { setIO, toUser, userRoom, type IO } from './notify';
 import { engine } from './matchEngine';
@@ -87,7 +87,14 @@ export function attachSocket(server: HttpServer): IO {
       if (!allowInput()) return;
       const parsed = officeInputBatchSchema.safeParse(data);
       if (!parsed.success || !joined.has(parsed.data.matchId)) return;
-      engine.input(userId, parsed.data);
+      engine.input(userId, parsed.data, 'office');
+    });
+
+    socket.on('chairs:input', (data) => {
+      if (!allowInput()) return;
+      const parsed = chairsInputBatchSchema.safeParse(data);
+      if (!parsed.success || !joined.has(parsed.data.matchId)) return;
+      engine.input(userId, parsed.data, 'chairs');
     });
 
     socket.on('room:loadout', (data) => {
@@ -97,12 +104,20 @@ export function attachSocket(server: HttpServer): IO {
       engine.setOption(parsed.data.matchId, userId, parsed.data.powers);
     });
 
-    // Private Office Battle rooms.
-    socket.on('lobby:create', async (ack) => {
+    // Private rooms (Office Battle or Chair Race).
+    socket.on('lobby:create', async (data, cb) => {
+      // Older clients send only the callback: those rooms play Office Battle.
+      const ack = typeof data === 'function' ? (data as typeof cb) : cb;
       if (typeof ack !== 'function' || !allow()) return;
+      const parsed = lobbyModeSchema.safeParse(data);
       matchmaker.leave(userId);
-      const code = await lobbies.create(userId).catch(() => null);
+      const code = await lobbies.create(userId, parsed.success ? parsed.data.mode : 'office').catch(() => null);
       ack(code ? { ok: true, code } : { ok: false, error: 'No se pudo crear la sala' });
+    });
+    socket.on('lobby:mode', (data) => {
+      if (!allow()) return;
+      const parsed = lobbyModeSchema.safeParse(data);
+      if (parsed.success) void lobbies.setMode(userId, parsed.data.mode).catch(() => {});
     });
     socket.on('lobby:join', async (data, ack) => {
       if (typeof ack !== 'function' || !allow()) return;

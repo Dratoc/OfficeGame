@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
+  Armchair,
   Copy,
   Crown,
   DoorOpen,
@@ -8,16 +9,61 @@ import {
   Swords,
   Users,
 } from "lucide-react";
-import { LOBBY_CODE_LENGTH, type FriendsDto } from "@inbox/shared";
+import { GAME_MODES, LOBBY_CODE_LENGTH, LOBBY_MODES, type FriendsDto, type LobbyModeId } from "@inbox/shared";
 import { Bust, LevelBadge } from "../components/Bits";
 import { useApp } from "../lib/store";
 import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
 
-/** Private Office Battle rooms: create one, share the code, and the host starts a fight for 2 to 4. */
+const MODE_TEXT: Record<LobbyModeId, { short: string; blurb: string; start: string; wait: string }> = {
+  office: {
+    short: "Pelea en la oficina",
+    blurb: "Todos contra todos con poderes: gana el último en pie.",
+    start: "Empezar pelea",
+    wait: "El anfitrión empieza la pelea",
+  },
+  chairs: {
+    short: "Carrera de sillas",
+    blurb: "3 vueltas en silla de oficina: dispara hacia adelante y acelera con cada acierto.",
+    start: "Empezar carrera",
+    wait: "El anfitrión empieza la carrera",
+  },
+};
+
+function ModeIcon({ mode, size = 16 }: { mode: LobbyModeId; size?: number }) {
+  return mode === "chairs" ? <Armchair size={size} /> : <Swords size={size} />;
+}
+
+/** Choice between the modes a private room can play. */
+function ModeChoice({ value, onChange, disabled }: { value: LobbyModeId; onChange: (m: LobbyModeId) => void; disabled?: boolean }) {
+  return (
+    <div className="rooms-modes" role="radiogroup" aria-label="Modo de juego">
+      {LOBBY_MODES.map((m) => (
+        <button
+          key={m}
+          type="button"
+          role="radio"
+          aria-checked={value === m}
+          className={`rooms-mode ${value === m ? "selected" : ""}`}
+          disabled={disabled}
+          onClick={() => onChange(m)}
+        >
+          <ModeIcon mode={m} size={18} />
+          <span>
+            <strong>{GAME_MODES[m].name}</strong>
+            <small>{MODE_TEXT[m].blurb}</small>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Private rooms: create one, pick Office Battle or Chair Race, share the code, and the host starts it for 2 to 4. */
 export function RoomsView() {
   const { me, lobby, toast, socialVersion } = useApp();
   const [code, setCode] = useState("");
+  const [mode, setMode] = useState<LobbyModeId>("office");
   const [busy, setBusy] = useState(false);
   const [friends, setFriends] = useState<FriendsDto["friends"]>([]);
   const [invited, setInvited] = useState<Set<string>>(new Set());
@@ -43,7 +89,7 @@ export function RoomsView() {
     }
   };
 
-  const create = () => run(() => getSocket().emitWithAck("lobby:create"));
+  const create = () => run(() => getSocket().emitWithAck("lobby:create", { mode }));
   const join = (e: FormEvent) => {
     e.preventDefault();
     const c = code.trim().toUpperCase();
@@ -59,17 +105,18 @@ export function RoomsView() {
             <DoorOpen size={22} /> Salas de batalla
           </h2>
           <p className="muted">
-            Arma una pelea privada de 2 a 4 jugadores en la oficina. Todos
-            contra todos: gana el último en pie.
+            Arma una partida privada de 2 a 4 jugadores: una pelea en la
+            oficina o una carrera de sillas.
           </p>
         </header>
         <div className="rooms-start">
           <section className="rooms-card">
             <h3>Crear una sala</h3>
             <p className="muted">
-              Te damos un código para compartir. Tú decides cuándo empieza la
-              pelea.
+              Elige el modo y te damos un código para compartir. Tú decides
+              cuándo empieza.
             </p>
+            <ModeChoice value={mode} onChange={setMode} disabled={busy} />
             <button
               className="btn btn-primary"
               disabled={busy}
@@ -134,10 +181,26 @@ export function RoomsView() {
           <DoorOpen size={22} /> Sala de batalla
         </h2>
         <p className="muted">
-          {lobby.members.length} de {lobby.max} jugadores ·{" "}
-          {isHost ? "Tú eres el anfitrión" : "El anfitrión empieza la pelea"}
+          {GAME_MODES[lobby.mode].name} · {lobby.members.length} de {lobby.max}{" "}
+          jugadores ·{" "}
+          {isHost ? "Tú eres el anfitrión" : MODE_TEXT[lobby.mode].wait}
         </p>
       </header>
+
+      {isHost ? (
+        <ModeChoice
+          value={lobby.mode}
+          onChange={(m) => getSocket().emit("lobby:mode", { mode: m })}
+        />
+      ) : (
+        <div className="rooms-mode-current">
+          <ModeIcon mode={lobby.mode} size={18} />
+          <span>
+            <strong>{GAME_MODES[lobby.mode].name}</strong>
+            <small>{MODE_TEXT[lobby.mode].blurb}</small>
+          </span>
+        </div>
+      )}
 
       <div className="rooms-code">
         <span className="muted">Código de la sala</span>
@@ -179,10 +242,10 @@ export function RoomsView() {
               void run(() => getSocket().emitWithAck("lobby:start"))
             }
           >
-            <Swords size={16} />{" "}
+            <ModeIcon mode={lobby.mode} />{" "}
             {lobby.members.length < 2
               ? "Esperando jugadores…"
-              : "Empezar pelea"}
+              : MODE_TEXT[lobby.mode].start}
           </button>
         ) : (
           <span className="muted">Esperando a que el anfitrión empiece…</span>
