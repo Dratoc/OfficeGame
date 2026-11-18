@@ -1,6 +1,6 @@
 import type { LobbyState, PlayableModeId } from '@inbox/shared';
 import { create } from 'zustand';
-import type { MailDto, MeDto } from '@inbox/shared';
+import type { GameModeId, MailDto, MeDto, PublicUser } from '@inbox/shared';
 import { api } from './api';
 import { isAway } from './alerts';
 
@@ -26,6 +26,22 @@ export interface Toast {
   action?: { label: string; run: () => void };
 }
 
+/** An invitation waiting for an answer: shown as a mail window until accepted, declined or closed. */
+export interface Invite {
+  /** `room:CODE` or `challenge:ID`, so the same invitation never shows twice. */
+  id: string;
+  kind: 'room' | 'challenge';
+  from: PublicUser;
+  subject: string;
+  body: string;
+  mode: GameModeId;
+  at: string;
+  code?: string;
+  challengeId?: string;
+  mailId?: string;
+  expiresAt?: string;
+}
+
 interface State {
   me: MeDto | null;
   authChecked: boolean;
@@ -36,6 +52,9 @@ interface State {
   composeOpen: boolean;
   composeTo: string;
   toasts: Toast[];
+  invites: Invite[];
+  addInvite: (invite: Invite) => void;
+  removeInvite: (id: string) => void;
   /** Quick match search state, driven by the server. */
   queue: { searching: boolean; since: number | null; mode?: PlayableModeId; players?: number };
   /** Private Office Battle room you are in, driven by the server. */
@@ -69,6 +88,9 @@ export const useApp = create<State>((set, get) => ({
   composeOpen: false,
   composeTo: '',
   toasts: [],
+  invites: [],
+  addInvite: (invite) => set({ invites: [...get().invites.filter((i) => i.id !== invite.id), invite] }),
+  removeInvite: (id) => set({ invites: get().invites.filter((i) => i.id !== id) }),
   queue: { searching: false, since: null },
   lobby: null,
   friendRequests: 0,

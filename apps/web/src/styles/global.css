@@ -763,3 +763,21 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .alerts-prompt-icon { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--gold-50); color: #8a6417; }
 .alerts-prompt-actions { display: flex; gap: 8px; }
 @media (max-width: 640px) { .alerts-prompt { left: 16px; right: 16px; max-width: none; } }
+
+/* ---------- invitation window (a mail that waits for an answer) ---------- */
+.invite-window { position: fixed; top: 68px; right: 20px; z-index: 35; width: min(430px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-lg); overflow: hidden; }
+.invite-window > header { display: flex; align-items: center; gap: 10px; padding: 9px 10px 9px 16px; background: var(--ink); color: #fff; }
+.invite-window-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13.5px; flex: 1; }
+.invite-window-count { font-size: 11.5px; color: #c4d2d3; background: rgba(255,255,255,.1); border-radius: 99px; padding: 2px 8px; }
+.invite-window > header .icon-btn { color: #c4d2d3; }
+.invite-window > header .icon-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+.invite-window-meta { display: flex; align-items: center; gap: 12px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line-2); }
+.invite-window-body { padding: 12px 16px 4px; }
+.invite-window-body h3 { margin: 0 0 6px; font-size: 16px; color: var(--brand-600); }
+.invite-window-body p { margin: 0 0 12px; color: var(--text); font-size: 13.5px; line-height: 1.45; white-space: pre-line; max-height: 120px; overflow: auto; }
+.invite-window-mode { display: flex; gap: 10px; align-items: center; border: 1px solid #ecd9ad; background: linear-gradient(160deg, #fffaf0, #fff); border-radius: 10px; padding: 10px 12px; }
+.invite-window-mode svg { color: var(--crimson); flex: none; }
+.invite-window-mode div { display: flex; flex-direction: column; }
+.invite-window-mode small { color: var(--muted); }
+.invite-window > footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 16px 16px; }
+.invite-window-expires { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }

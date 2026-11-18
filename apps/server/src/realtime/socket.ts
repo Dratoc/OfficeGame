@@ -124,6 +124,12 @@ export function attachSocket(server: HttpServer): IO {
       if (parsed.success) void lobbies.invite(userId, parsed.data.userId).catch(() => {});
     });
 
+    socket.on('lobby:decline', (data) => {
+      if (!allow()) return;
+      const parsed = lobbyCodeSchema.safeParse(data);
+      if (parsed.success) void lobbies.decline(userId, parsed.data.code).catch(() => {});
+    });
+
     socket.on('queue:join', (data) => {
       if (!allow() || !queueJoinSchema.safeParse(data).success) return;
       lobbies.leave(userId);
