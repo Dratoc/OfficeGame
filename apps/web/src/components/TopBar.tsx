@@ -2,6 +2,7 @@ import { Doubloons } from '../views/ShopView';
 import { useEffect, useRef, useState } from 'react';
 import { LogOut, Search, Settings, Swords, User } from 'lucide-react';
 import { Logo } from './Logo';
+import { AlertsMenu } from './AlertsMenu';
 import { LevelBadge, XpBar } from './Bits';
 import { Avatar } from '../avatar/Avatar';
 import { useApp } from '../lib/store';
@@ -44,6 +45,7 @@ export function TopBar() {
         <button className="topbar-coins" onClick={() => go({ kind: 'shop' })} title="Doblones: gástalos en la Tienda">
           <Doubloons amount={me.stats.coins} />
         </button>
+        <AlertsMenu />
         <div className="topbar-level">
           <LevelBadge level={me.stats.level} />
           <XpBar xp={me.stats.xp} compact />

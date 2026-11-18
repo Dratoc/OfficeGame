@@ -2,6 +2,7 @@ import type { LobbyState, PlayableModeId } from '@inbox/shared';
 import { create } from 'zustand';
 import type { MailDto, MeDto } from '@inbox/shared';
 import { api } from './api';
+import { isAway } from './alerts';
 
 export type Folder = 'inbox' | 'challenges' | 'sent';
 export type View =
@@ -114,7 +115,12 @@ export const useApp = create<State>((set, get) => ({
   toast: (t) => {
     const id = toastId++;
     set({ toasts: [...get().toasts, { ...t, id }] });
-    setTimeout(() => get().dismiss(id), 6000);
+    // If the player is in another tab, keep the toast until they come back and can read it.
+    const expire = () => {
+      if (!isAway()) return get().dismiss(id);
+      window.addEventListener('focus', () => setTimeout(() => get().dismiss(id), 6000), { once: true });
+    };
+    setTimeout(expire, 6000);
   },
   dismiss: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
 }));
