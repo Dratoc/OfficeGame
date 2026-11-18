@@ -12,7 +12,7 @@ const CHALLENGE_TTL_MS = 24 * 3600_000;
 
 const createSchema = z.object({
   opponent: z.string().trim().min(1, 'Escribe a quién quieres desafiar').max(40),
-  mode: z.enum(['typing', 'math', 'keys', 'task', 'racing', 'puzzle', 'office']).default('typing'),
+  mode: z.enum(['typing', 'math', 'keys', 'task', 'racing', 'puzzle', 'office', 'chairs']).default('typing'),
   subject: z.string().trim().max(120).optional(),
   message: z.string().trim().max(1000).default(''),
 });

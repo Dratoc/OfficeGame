@@ -1,6 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
-import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema, officeInputBatchSchema, loadoutPickSchema, lobbyCodeSchema, lobbyInviteSchema } from '@inbox/shared';
+import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema, officeInputBatchSchema, chairsInputBatchSchema, salesInputBatchSchema, zombieInputBatchSchema, liveJoinSchema, lobbyModeSchema, loadoutPickSchema, lobbyCodeSchema, lobbyInviteSchema } from '@inbox/shared';
 import { SESSION_COOKIE, readCookie, userIdFromToken } from '../lib/auth';
 import { setIO, toUser, userRoom, type IO } from './notify';
 import { engine } from './matchEngine';
@@ -8,6 +8,8 @@ import { matchmaker } from './matchmaking';
 import { lobbies } from './lobbies';
 import { markConnected, markDisconnected } from './presence';
 import { friendIds } from '../lib/friends';
+import { createMatch } from '../lib/matches';
+import { getPublicUser } from '../lib/users';
 
 async function broadcastPresence(userId: string, online: boolean) {
   for (const id of await friendIds(userId)) toUser(id, 'presence:update', { userId, online });
@@ -87,7 +89,52 @@ export function attachSocket(server: HttpServer): IO {
       if (!allowInput()) return;
       const parsed = officeInputBatchSchema.safeParse(data);
       if (!parsed.success || !joined.has(parsed.data.matchId)) return;
-      engine.input(userId, parsed.data);
+      engine.input(userId, parsed.data, 'office');
+    });
+
+    socket.on('chairs:input', (data) => {
+      if (!allowInput()) return;
+      const parsed = chairsInputBatchSchema.safeParse(data);
+      if (!parsed.success || !joined.has(parsed.data.matchId)) return;
+      engine.input(userId, parsed.data, 'chairs');
+    });
+
+    socket.on('sales:input', (data) => {
+      if (!allowInput()) return;
+      const parsed = salesInputBatchSchema.safeParse(data);
+      if (!parsed.success || !joined.has(parsed.data.matchId)) return;
+      engine.input(userId, parsed.data, 'sales');
+    });
+
+    socket.on('zombies:input', (data) => {
+      if (!allowInput()) return;
+      const parsed = zombieInputBatchSchema.safeParse(data);
+      if (!parsed.success || !joined.has(parsed.data.matchId)) return;
+      engine.input(userId, parsed.data, 'zombies');
+    });
+
+    // Zona Zombi matches are public: anyone can see them and jump in while they last.
+    socket.on('zombies:list', (ack) => {
+      if (typeof ack !== 'function' || !allow()) return;
+      ack(engine.live());
+    });
+    socket.on('zombies:start', async (ack) => {
+      if (typeof ack !== 'function' || !allow()) return;
+      matchmaker.leave(userId);
+      lobbies.leave(userId);
+      const matchId = await createMatch('zombies', [userId]).catch(() => null);
+      ack(matchId ? { ok: true, matchId } : { ok: false, error: 'No se pudo crear la partida' });
+    });
+    socket.on('zombies:join', async (data, ack) => {
+      if (typeof ack !== 'function' || !allow()) return;
+      const parsed = liveJoinSchema.safeParse(data);
+      if (!parsed.success) return ack({ ok: false, error: 'Partida inválida' });
+      const user = await getPublicUser(userId).catch(() => null);
+      if (!user) return ack({ ok: false, error: 'No se pudo entrar' });
+      matchmaker.leave(userId);
+      lobbies.leave(userId);
+      const error = await engine.joinLive(parsed.data.matchId, user).catch(() => 'No se pudo entrar a la partida');
+      ack(error ? { ok: false, error } : { ok: true });
     });
 
     socket.on('room:loadout', (data) => {
@@ -97,12 +144,20 @@ export function attachSocket(server: HttpServer): IO {
       engine.setOption(parsed.data.matchId, userId, parsed.data.powers);
     });
 
-    // Private Office Battle rooms.
-    socket.on('lobby:create', async (ack) => {
+    // Private rooms (Office Battle, Chair Race or A Toda Máquina).
+    socket.on('lobby:create', async (data, cb) => {
+      // Older clients send only the callback: those rooms play Office Battle.
+      const ack = typeof data === 'function' ? (data as typeof cb) : cb;
       if (typeof ack !== 'function' || !allow()) return;
+      const parsed = lobbyModeSchema.safeParse(data);
       matchmaker.leave(userId);
-      const code = await lobbies.create(userId).catch(() => null);
+      const code = await lobbies.create(userId, parsed.success ? parsed.data.mode : 'office').catch(() => null);
       ack(code ? { ok: true, code } : { ok: false, error: 'No se pudo crear la sala' });
+    });
+    socket.on('lobby:mode', (data) => {
+      if (!allow()) return;
+      const parsed = lobbyModeSchema.safeParse(data);
+      if (parsed.success) void lobbies.setMode(userId, parsed.data.mode).catch(() => {});
     });
     socket.on('lobby:join', async (data, ack) => {
       if (typeof ack !== 'function' || !allow()) return;

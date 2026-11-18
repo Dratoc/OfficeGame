@@ -1,4 +1,4 @@
-export type GameModeId = 'typing' | 'math' | 'keys' | 'task' | 'racing' | 'puzzle' | 'office';
+export type GameModeId = 'typing' | 'math' | 'keys' | 'task' | 'racing' | 'puzzle' | 'office' | 'chairs' | 'sales' | 'zombies';
 
 export interface GameModeInfo {
   id: GameModeId;
@@ -20,10 +20,16 @@ export const GAME_MODES: Record<GameModeId, GameModeInfo> = {
   racing: { id: 'racing', name: 'Racing Battle', tagline: 'Carrera de 2 a 4 jugadores: cada palabra te acerca a la meta.', unit: 'palabras', minPlayers: 2, maxPlayers: 4, durationMs: 45_000, available: true },
   puzzle: { id: 'puzzle', name: 'Puzzle Battle', tagline: 'Series, intrusos, anagramas y patrones. De 2 a 4 jugadores.', unit: 'acertijos', minPlayers: 2, maxPlayers: 4, durationMs: 45_000, available: true },
   office: { id: 'office', name: 'Office Battle', tagline: 'Pelea 3D de 2 a 4 avatares en la oficina, con poderes.', unit: 'golpes', minPlayers: 2, maxPlayers: 4, durationMs: 60_000, available: true },
+  chairs: { id: 'chairs', name: 'Carrera de Sillas', tagline: 'Carrera 3D en sillas de oficina: dispara hacia adelante y acelera con cada acierto.', unit: 'impactos', minPlayers: 2, maxPlayers: 4, durationMs: 120_000, available: true },
+  zombies: { id: 'zombies', name: 'Zona Zombi', tagline: 'Sobrevive a hordas de zombis con tu equipo: armas, autos, tiendas y fortalezas.', unit: 'zombis', minPlayers: 1, maxPlayers: 4, durationMs: 60 * 60_000, available: true },
+  sales: { id: 'sales', name: 'A Toda Máquina', tagline: 'Cooperativo de 1 a 4: atiende clientes, timbra órdenes y entrega la máquina correcta.', unit: 'pedidos', minPlayers: 1, maxPlayers: 4, durationMs: 30 * 60_000, available: true },
 };
 
+/** Modes where the whole team wins or loses together. */
+export const COOP_MODES: readonly GameModeId[] = ['sales', 'zombies'];
+
 /** Modes that a player can pick today, in display order. */
-export const PLAYABLE_MODES = ['typing', 'math', 'keys', 'task', 'racing', 'puzzle', 'office'] as const;
+export const PLAYABLE_MODES = ['typing', 'math', 'keys', 'task', 'racing', 'puzzle', 'office', 'chairs'] as const;
 export type PlayableModeId = (typeof PLAYABLE_MODES)[number];
 
 /** Words to the finish line in Racing Battle. */
@@ -36,3 +42,10 @@ export const FINISH_LINE: Partial<Record<GameModeId, number>> = { racing: RACE_L
 
 /** A race starts with fewer than the maximum players once the first one waited this long. */
 export const RACE_FILL_MS = 8_000;
+
+/** Modes that private rooms (Salas de batalla) can host. */
+export const LOBBY_MODES = ['office', 'chairs', 'sales', 'zombies'] as const;
+
+/** Modes whose matches anyone can find and join while they are being played. */
+export const DROP_IN_MODES: readonly GameModeId[] = ['zombies'];
+export type LobbyModeId = (typeof LOBBY_MODES)[number];

@@ -1,4 +1,4 @@
-import type { LobbyState, PlayableModeId, PublicUser } from '@inbox/shared';
+import { GAME_MODES, type LobbyModeId, type LobbyState, type PlayableModeId, type PublicUser } from '@inbox/shared';
 import { useEffect } from 'react';
 import { TopBar } from './components/TopBar';
 import { Sidebar } from './components/Sidebar';
@@ -85,19 +85,23 @@ function useRealtime(enabled: boolean) {
       // Joined the room some other way (the code, the notification): its invitation is answered.
       if (lobby) useApp.getState().removeInvite(`room:${lobby.code}`);
     };
-    const onLobbyStarted = ({ matchId }: { matchId: string }) => {
+    const onLobbyStarted = ({ matchId, mode }: { matchId: string; mode?: LobbyModeId }) => {
+      const race = mode === 'chairs';
+      const title = mode === 'zombies' ? '¡Vienen los zombis!' : mode === 'sales' ? '¡Abre el local!' : race ? '¡La carrera empieza!' : '¡La pelea empieza!';
+      const body = mode === 'zombies' ? 'Compra armas y bloquea las puertas.' : mode === 'sales' ? 'Los clientes ya vienen en camino.' : race ? 'Súbete a tu silla y prepárate.' : 'Elige tus poderes y prepárate.';
       useApp.setState({ lobby: null });
-      useApp.getState().toast({ title: '¡La pelea empieza!', body: 'Elige tus poderes y prepárate.', tone: 'success' });
+      useApp.getState().toast({ title, body, tone: 'success' });
       useApp.getState().go({ kind: 'battle', matchId });
-      backgroundAlert({ title: '¡La pelea empieza!', body: 'Elige tus poderes y prepárate.', tag: `match:${matchId}`, important: true });
+      backgroundAlert({ title, body, tag: `match:${matchId}`, important: true });
     };
     const joinRoom = (code: string) =>
       void getSocket()
         .emitWithAck('lobby:join', { code })
         .then((r) => (r.ok ? useApp.getState().go({ kind: 'rooms' }) : useApp.getState().toast({ title: r.error ?? 'No se pudo entrar', tone: 'error' })));
-    const onInvited = ({ code, from }: { code: string; from: PublicUser }) => {
+    const onInvited = ({ code, from, mode }: { code: string; from: PublicUser; mode?: LobbyModeId }) => {
+      const info = GAME_MODES[mode ?? 'office'];
       backgroundAlert({
-        title: `${from.username} te invita a una sala de Office Battle`,
+        title: `${from.username} te invita a una sala de ${info.name}`,
         body: `Código ${code}. Haz clic para unirte.`,
         tag: `invite:${code}`,
         important: true,
@@ -110,9 +114,9 @@ function useRealtime(enabled: boolean) {
         id: `room:${code}`,
         kind: 'room',
         from,
-        subject: `${from.username} te invita a una sala de Office Battle`,
-        body: `Hola, armé una sala privada y falta gente. ¿Te sumas a la pelea? Entramos hasta 4 y el anfitrión empieza cuando estén todos.`,
-        mode: 'office',
+        subject: `${from.username} te invita a una sala de ${info.name}`,
+        body: `Hola, armé una sala privada de ${info.name} y falta gente. ¿Te sumas? Entramos hasta ${info.maxPlayers} y el anfitrión empieza cuando estén todos.`,
+        mode: mode ?? 'office',
         at: new Date().toISOString(),
         code,
       });

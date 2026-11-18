@@ -693,7 +693,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .practice-levels { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .practice-levels .chip { cursor: pointer; }
 .practice-actions { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
-@media (max-width: 720px) { .office-stage { height: 64vh; min-height: 300px; border-radius: 10px; } .practice-levels { display: none; } }
+@media (max-width: 720px) { .office-stage { height: 64vh; min-height: 300px; border-radius: 10px; } .practice-levels > :not(.practice-game) { display: none; } }
 
 /* Office Battle powers */
 .power-picker { width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 10px; }
@@ -739,8 +739,20 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .rooms-invite ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .rooms-invite li { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; }
 .rooms-invite li span { flex: 1; font-weight: 600; }
+.rooms-modes { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.rooms > .rooms-modes { flex-direction: row; margin-top: 14px; }
+.rooms-mode, .rooms-mode-current { display: flex; align-items: flex-start; gap: 10px; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); flex: 1; }
+.rooms-mode { cursor: pointer; font: inherit; }
+.rooms-mode:hover:not(:disabled) { border-color: var(--brand); }
+.rooms-mode.selected { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-50); background: var(--parchment); }
+.rooms-mode svg, .rooms-mode-current svg { flex: none; margin-top: 2px; color: var(--brand); }
+.rooms-mode span, .rooms-mode-current span { display: flex; flex-direction: column; gap: 2px; }
+.rooms-mode small, .rooms-mode-current small { color: var(--muted); font-size: 12.5px; line-height: 1.35; }
+.rooms-mode-current { margin-top: 14px; }
+@media (min-width: 721px) { .chairs-stage { height: min(74vh, 700px); } .sales-stage { height: min(76vh, 720px); } }
 @media (max-width: 700px) {
   .rooms-start { grid-template-columns: 1fr; }
+  .rooms > .rooms-modes { flex-direction: column; }
   .rooms-members { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rooms-code strong { font-size: 26px; }
 }
@@ -781,3 +793,15 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .invite-window-mode small { color: var(--muted); }
 .invite-window > footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 16px 16px; }
 .invite-window-expires { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }
+
+@media (min-width: 721px) { .zombies-stage { height: min(78vh, 760px); } }
+.rooms-live { margin-bottom: 16px; }
+.rooms-live h3 { display: flex; align-items: center; gap: 8px; }
+.rooms-live > .btn { align-self: flex-start; }
+.rooms-live-list { width: 100%; list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rooms-live-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; }
+.rooms-live-list li > span { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.rooms-live-list li > span strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rooms-live-list li > span small { color: var(--muted); font-size: 12.5px; }
+.rooms-live-who { display: flex; }
+.rooms-live-who > * + * { margin-left: -8px; }
