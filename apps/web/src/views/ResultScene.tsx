@@ -176,8 +176,123 @@ function CoopResult({ summary }: { summary: MatchSummaryDto }) {
   );
 }
 
+function ZombiesResult({ summary }: { summary: MatchSummaryDto }) {
+  const { me, go } = useApp();
+  const mine = summary.participants.find((p) => p.user.id === me?.id) ?? summary.participants[0]!;
+  const team = summary.participants;
+  const lead = team.find((p) => p.result !== 'abandon') ?? mine;
+  // The wave reached travels in every participant's stats.
+  const waves = Math.max(0, lead.wpm - 1);
+  const won = mine.result === 'win';
+  return (
+    <div className={`result ${won ? 'is-win' : 'is-loss'}`}>
+      {won && <Confetti />}
+      <motion.h1 className="result-title" initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 14 }}>
+        {mine.result === 'abandon' ? 'Abandono' : won ? `¡Sobrevivieron ${waves} oleadas!` : 'Cayeron todos'}
+      </motion.h1>
+      <p className="result-sub">
+        {mine.result === 'abandon'
+          ? 'Te desconectaste demasiado tiempo y el equipo siguió sin ti.'
+          : `El equipo llegó a la oleada ${lead.wpm}${waves === 1 ? ' (1 oleada superada)' : ` (${waves} oleadas superadas)`}. ${won ? 'La horda tendrá que esperar.' : 'Sobrevivir 4 oleadas cuenta como victoria.'}`}
+      </p>
+      <div className="result-stage is-race">
+        {team.map((p, i) => (
+          <motion.div key={p.user.id} className={`podium podium-${p.result}`} initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 + i * 0.12, type: 'spring' }}>
+            <Avatar config={p.user.avatar} pose={p.result === 'win' ? 'win' : p.result === 'loss' ? 'lose' : 'idle'} size={150} />
+            <div className="podium-block">
+              <strong>{p.user.username}</strong>
+              <span>{p.result === 'abandon' ? 'Abandonó' : `${p.correctWords} zombis`}</span>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+      <div className="result-table">
+        <table>
+          <thead>
+            <tr>
+              <th />
+              {team.map((p) => (
+                <th key={p.user.id}>{p.user.id === me?.id ? 'Tú' : p.user.username}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Zombis eliminados</td>
+              {team.map((p) => (
+                <td key={p.user.id}>{p.correctWords}</td>
+              ))}
+            </tr>
+            <tr>
+              <td>Veces que cayó</td>
+              {team.map((p) => (
+                <td key={p.user.id}>{p.errors}</td>
+              ))}
+            </tr>
+            <tr>
+              <td>Gigantes derribados</td>
+              {team.map((p) => (
+                <td key={p.user.id}>{p.accuracy}</td>
+              ))}
+            </tr>
+            <tr>
+              <td>Monedas ganadas</td>
+              {team.map((p) => (
+                <td key={p.user.id}>{p.correctChars}</td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="rewards">
+        <motion.div className="reward" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }}>
+          <span className="reward-label">Experiencia</span>
+          <strong>+{mine.xpGained} XP</strong>
+        </motion.div>
+        <motion.div className="reward reward-coins" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.08 }}>
+          <span className="reward-label">Doblones</span>
+          <strong>+{mine.coinsGained}</strong>
+        </motion.div>
+        <motion.div className="reward" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.15 }}>
+          <span className="reward-label">Rating</span>
+          <strong>Sin cambios</strong>
+        </motion.div>
+        {mine.levelAfter > mine.levelBefore && (
+          <motion.div className="reward reward-level" initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 1.3, type: 'spring' }}>
+            <span className="reward-label">¡Subiste de nivel!</span>
+            <strong>Nivel {mine.levelAfter}</strong>
+          </motion.div>
+        )}
+      </div>
+      {mine.achievements.length > 0 && (
+        <div className="ach-unlocked">
+          {mine.achievements.map((id, i) => (
+            <motion.div key={id} className="ach-pop" initial={{ scale: 0.4, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} transition={{ delay: 1.4 + i * 0.25, type: 'spring', stiffness: 300, damping: 15 }}>
+              <AchievementMedal id={id} size="lg" />
+              <div>
+                <span className="reward-label">Logro desbloqueado</span>
+                <strong>{ACHIEVEMENTS_BY_ID.get(id)?.name}</strong>
+                <small>{ACHIEVEMENTS_BY_ID.get(id)?.description}</small>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+      <div className="result-actions">
+        <button className="btn btn-primary" onClick={() => go({ kind: 'rooms' })}>
+          <RotateCcw size={16} /> Otra partida
+        </button>
+        <button className="btn btn-ghost" onClick={() => go({ kind: 'mail', folder: 'inbox', mailId: null })}>
+          <ArrowLeft size={16} /> Volver a la bandeja
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ResultScene({ summary }: { summary: MatchSummaryDto }) {
   if (summary.mode === 'sales') return <CoopResult summary={summary} />;
+  if (summary.mode === 'zombies') return <ZombiesResult summary={summary} />;
   return <DuelResult summary={summary} />;
 }
 

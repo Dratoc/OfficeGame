@@ -10,6 +10,10 @@ import {
   type OfficeInputBatch,
   type ChairsInputBatch,
   type SalesInputBatch,
+  type ZombieInputBatch,
+  type LiveMatch,
+  DROP_IN_MODES,
+  GAME_MODES,
   type PowerId,
 } from '@inbox/shared';
 import { prisma } from '../lib/db';
@@ -270,6 +274,7 @@ export class MatchEngine {
       const io = getIO()?.to(matchRoom(room.matchId));
       if (room.modeId === 'chairs') io?.emit('chairs:frame', { matchId: room.matchId, frame });
       else if (room.modeId === 'sales') io?.emit('sales:frame', { matchId: room.matchId, frame });
+      else if (room.modeId === 'zombies') io?.emit('zombies:frame', { matchId: room.matchId, frame });
       else io?.emit('match:frame', { matchId: room.matchId, frame });
     }
     const remaining = [...room.players.keys()].filter((id) => !room.abandoned.has(id));
@@ -282,7 +287,7 @@ export class MatchEngine {
   }
 
   /** Inputs of a real-time mode (Office Battle, Chair Race, A Toda Máquina). The mode must match the input kind. */
-  input(userId: string, data: OfficeInputBatch | ChairsInputBatch | SalesInputBatch, kind: 'office' | 'chairs' | 'sales' = 'office'): boolean {
+  input(userId: string, data: OfficeInputBatch | ChairsInputBatch | SalesInputBatch | ZombieInputBatch, kind: 'office' | 'chairs' | 'sales' | 'zombies' = 'office'): boolean {
     const room = this.rooms.get(data.matchId);
     if (!room || !room.state || !room.mode.tick || !room.players.has(userId) || room.modeId !== kind) return false;
     if (room.phase !== 'playing' && room.phase !== 'countdown') return false;
@@ -313,6 +318,49 @@ export class MatchEngine {
       setTimeout(() => this.rooms.delete(room.matchId), 60_000).unref();
     })();
     return room.finishing;
+  }
+
+  /** Public matches of drop-in modes being played right now, for anyone to join. */
+  live(): LiveMatch[] {
+    const now = this.now();
+    const out: LiveMatch[] = [];
+    for (const room of this.rooms.values()) {
+      if (!DROP_IN_MODES.includes(room.modeId) || room.finishing || !room.state) continue;
+      if (room.phase !== 'playing' && room.phase !== 'countdown') continue;
+      const players = [...room.players.entries()].filter(([id, p]) => !room.abandoned.has(id) && p.sockets > 0).map(([, p]) => p.user);
+      if (!players.length) continue;
+      out.push({
+        matchId: room.matchId,
+        mode: room.modeId,
+        players,
+        max: GAME_MODES[room.modeId].maxPlayers,
+        wave: room.state.world?.wave ?? 0,
+        seconds: Math.max(0, Math.round((now - (room.startAt ?? now)) / 1000)),
+      });
+    }
+    return out.sort((a, b) => b.players.length - a.players.length);
+  }
+
+  /**
+   * Someone jumps into a public match in progress. They become a participant (results, XP and
+   * doubloons included) and the mode adds them to the live state. Returns an error or null.
+   */
+  async joinLive(matchId: string, user: PublicUser): Promise<string | null> {
+    const room = this.rooms.get(matchId);
+    if (!room || !DROP_IN_MODES.includes(room.modeId) || !room.mode.addPlayer || !room.state) return 'Esta partida ya no está disponible';
+    if (room.finishing || (room.phase !== 'playing' && room.phase !== 'countdown')) return 'Esta partida ya terminó';
+    if (room.mode.isDone?.(room.state, this.activeIds(room))) return 'Esta partida ya terminó';
+    if (room.players.has(user.id)) {
+      room.abandoned.delete(user.id);
+      return null;
+    }
+    const active = [...room.players.keys()].filter((id) => !room.abandoned.has(id)).length;
+    if (active >= GAME_MODES[room.modeId].maxPlayers) return `La partida está llena (${active} de ${GAME_MODES[room.modeId].maxPlayers})`;
+    await prisma.matchParticipant.create({ data: { matchId, userId: user.id } });
+    room.players.set(user.id, { user, sockets: 0, ready: true });
+    room.mode.addPlayer(room.state, user.id);
+    this.broadcast(room);
+    return null;
   }
 
   /** For tests. */

@@ -775,3 +775,14 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .alerts-prompt-icon { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--gold-50); color: #8a6417; }
 .alerts-prompt-actions { display: flex; gap: 8px; }
 @media (max-width: 640px) { .alerts-prompt { left: 16px; right: 16px; max-width: none; } }
+@media (min-width: 721px) { .zombies-stage { height: min(78vh, 760px); } }
+.rooms-live { margin-bottom: 16px; }
+.rooms-live h3 { display: flex; align-items: center; gap: 8px; }
+.rooms-live > .btn { align-self: flex-start; }
+.rooms-live-list { width: 100%; list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rooms-live-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; }
+.rooms-live-list li > span { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.rooms-live-list li > span strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rooms-live-list li > span small { color: var(--muted); font-size: 12.5px; }
+.rooms-live-who { display: flex; }
+.rooms-live-who > * + * { margin-left: -8px; }

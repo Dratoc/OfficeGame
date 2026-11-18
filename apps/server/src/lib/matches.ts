@@ -146,7 +146,8 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
 
       const delta = deltaOf.get(o.userId)!;
       const xpGained = xpForResult(result, o.correctWords, place, n);
-      const coins = coinsForResult(result, o.correctWords, place, n);
+      // Zona Zombi: part of the money made killing zombies becomes doubloons.
+      const coins = coinsForResult(result, o.correctWords, place, n) + (input.mode === 'zombies' && result !== 'abandon' ? Math.min(60, Math.floor(o.correctChars / 40)) : 0);
       const newXp = me.xp + xpGained;
       const newLevel = levelForXp(newXp);
 
@@ -208,6 +209,29 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
       }
 
       const oppName = nameOf.get(oppId) ?? 'tu rival';
+      if (input.teamResult && input.mode === 'zombies') {
+        const team = ids.filter((id) => id !== o.userId).map((id) => nameOf.get(id) ?? '').filter(Boolean);
+        const waves = Math.max(0, o.wpm - 1);
+        const subject =
+          result === 'abandon'
+            ? `${GAME_MODES[input.mode].name}: dejaste la partida`
+            : `${GAME_MODES[input.mode].name}: llegaron a la oleada ${o.wpm}, ${o.correctWords} zombis eliminados`;
+        const body = [
+          'Estimado/a sobreviviente:\n\nRecursos Humanos confirma que la horda fue contenida (por ahora).',
+          team.length ? `\nEquipo: tú, ${team.join(', ')}.` : '\nSobreviviste sin compañeros.',
+          `Llegaron a la oleada ${o.wpm} (${waves === 1 ? '1 oleada superada' : `${waves} oleadas superadas`}).`,
+          `Zombis que eliminaste: ${o.correctWords} (${o.accuracy} gigantes). Veces que caíste: ${o.errors}. Monedas ganadas en la partida: ${o.correctChars}.`,
+          `Experiencia ganada: +${xpGained} XP. Doblones: +${coins + bonus}. Rating sin cambios en los modos cooperativos.`,
+          newLevel > me.level ? `\n¡Subiste al nivel ${newLevel}!` : '',
+          unlocked.length ? `Nuevos objetos en tu armería: ${unlocked.map((id) => ITEMS_BY_ID.get(id)?.name ?? id).join(', ')}.` : '',
+          earned.length ? `Logros desbloqueados: ${earned.map((id) => `«${ACHIEVEMENTS_BY_ID.get(id)?.name ?? id}»`).join(', ')}.` : '',
+          '\nAtentamente,\nComité de Emergencias',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        mails.push(await sendMail({ toUserId: o.userId, kind: 'result', subject, body, matchId: input.matchId }, tx));
+        continue;
+      }
       if (input.teamResult) {
         const days = o.wpm - 1;
         const team = ids.filter((id) => id !== o.userId).map((id) => nameOf.get(id) ?? '').filter(Boolean);

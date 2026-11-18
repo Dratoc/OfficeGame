@@ -1,6 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
-import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema, officeInputBatchSchema, chairsInputBatchSchema, salesInputBatchSchema, lobbyModeSchema, loadoutPickSchema, lobbyCodeSchema, lobbyInviteSchema } from '@inbox/shared';
+import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema, officeInputBatchSchema, chairsInputBatchSchema, salesInputBatchSchema, zombieInputBatchSchema, liveJoinSchema, lobbyModeSchema, loadoutPickSchema, lobbyCodeSchema, lobbyInviteSchema } from '@inbox/shared';
 import { SESSION_COOKIE, readCookie, userIdFromToken } from '../lib/auth';
 import { setIO, toUser, userRoom, type IO } from './notify';
 import { engine } from './matchEngine';
@@ -8,6 +8,8 @@ import { matchmaker } from './matchmaking';
 import { lobbies } from './lobbies';
 import { markConnected, markDisconnected } from './presence';
 import { friendIds } from '../lib/friends';
+import { createMatch } from '../lib/matches';
+import { getPublicUser } from '../lib/users';
 
 async function broadcastPresence(userId: string, online: boolean) {
   for (const id of await friendIds(userId)) toUser(id, 'presence:update', { userId, online });
@@ -102,6 +104,37 @@ export function attachSocket(server: HttpServer): IO {
       const parsed = salesInputBatchSchema.safeParse(data);
       if (!parsed.success || !joined.has(parsed.data.matchId)) return;
       engine.input(userId, parsed.data, 'sales');
+    });
+
+    socket.on('zombies:input', (data) => {
+      if (!allowInput()) return;
+      const parsed = zombieInputBatchSchema.safeParse(data);
+      if (!parsed.success || !joined.has(parsed.data.matchId)) return;
+      engine.input(userId, parsed.data, 'zombies');
+    });
+
+    // Zona Zombi matches are public: anyone can see them and jump in while they last.
+    socket.on('zombies:list', (ack) => {
+      if (typeof ack !== 'function' || !allow()) return;
+      ack(engine.live());
+    });
+    socket.on('zombies:start', async (ack) => {
+      if (typeof ack !== 'function' || !allow()) return;
+      matchmaker.leave(userId);
+      lobbies.leave(userId);
+      const matchId = await createMatch('zombies', [userId]).catch(() => null);
+      ack(matchId ? { ok: true, matchId } : { ok: false, error: 'No se pudo crear la partida' });
+    });
+    socket.on('zombies:join', async (data, ack) => {
+      if (typeof ack !== 'function' || !allow()) return;
+      const parsed = liveJoinSchema.safeParse(data);
+      if (!parsed.success) return ack({ ok: false, error: 'Partida inválida' });
+      const user = await getPublicUser(userId).catch(() => null);
+      if (!user) return ack({ ok: false, error: 'No se pudo entrar' });
+      matchmaker.leave(userId);
+      lobbies.leave(userId);
+      const error = await engine.joinLive(parsed.data.matchId, user).catch(() => 'No se pudo entrar a la partida');
+      ack(error ? { ok: false, error } : { ok: true });
     });
 
     socket.on('room:loadout', (data) => {
