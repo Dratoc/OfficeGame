@@ -14,3 +14,5 @@ export * from './chairs';
 export * from './chairsBot';
 export * from './sales';
 export * from './salesBot';
+export * from './zombies';
+export * from './zombiesBot';

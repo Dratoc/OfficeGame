@@ -5,6 +5,7 @@ import type { Prompt } from './prompts';
 import type { OfficeFrame, OfficeInputBatch, PowerId } from './office';
 import type { ChairsFrame, ChairsInputBatch } from './chairs';
 import type { SalesFrame, SalesInputBatch } from './sales';
+import type { ZombieFrame, ZombieInputBatch } from './zombies';
 import type { MailDto, MatchSummaryDto, PublicUser } from './api';
 
 /** Socket.IO protocol. Every client → server payload is validated with these schemas. */
@@ -65,6 +66,19 @@ export interface WordResultEvent {
   nextIndex: number;
 }
 
+/** A public match in progress that anyone can join (Zona Zombi). */
+export interface LiveMatch {
+  matchId: string;
+  mode: GameModeId;
+  players: PublicUser[];
+  max: number;
+  /** Wave being played, and seconds since the start. */
+  wave: number;
+  seconds: number;
+}
+
+export const liveJoinSchema = z.object({ matchId: z.string().min(1).max(40) });
+
 /** A private room (Office Battle, Chair Race or A Toda Máquina) before the match starts. */
 export interface LobbyState {
   code: string;
@@ -88,6 +102,8 @@ export interface ServerToClientEvents {
   'chairs:frame': (data: { matchId: string; frame: ChairsFrame }) => void;
   /** A Toda Máquina: the authoritative state of the shift, every simulation tick. */
   'sales:frame': (data: { matchId: string; frame: SalesFrame }) => void;
+  /** Zona Zombi: the authoritative state of the map, every simulation tick. */
+  'zombies:frame': (data: { matchId: string; frame: ZombieFrame }) => void;
   /** Your private room changed; null when you are no longer in one. */
   'lobby:state': (state: LobbyState | null) => void;
   'lobby:started': (data: { matchId: string; mode?: LobbyModeId }) => void;
@@ -111,6 +127,14 @@ export interface ClientToServerEvents {
   'chairs:input': (data: ChairsInputBatch) => void;
   /** A Toda Máquina: a few steps of input (move, press or hold the action). */
   'sales:input': (data: SalesInputBatch) => void;
+  /** Zona Zombi: a few steps of input (move, fight, use, shop). */
+  'zombies:input': (data: ZombieInputBatch) => void;
+  /** Zona Zombi: the public matches being played right now. */
+  'zombies:list': (ack: (res: LiveMatch[]) => void) => void;
+  /** Zona Zombi: start a public match right away, alone. Others can join it while it lasts. */
+  'zombies:start': (ack: (res: { ok: boolean; error?: string; matchId?: string }) => void) => void;
+  /** Zona Zombi: jump into a public match in progress. */
+  'zombies:join': (data: { matchId: string }, ack: (res: { ok: boolean; error?: string }) => void) => void;
   /** Office Battle: pick two powers in the lobby. */
   'room:loadout': (data: { matchId: string; powers: PowerId[] }) => void;
   /** The mode is optional; without it the room plays Office Battle. */
