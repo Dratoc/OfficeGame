@@ -108,6 +108,8 @@ export interface ServerToClientEvents {
   'lobby:state': (state: LobbyState | null) => void;
   'lobby:started': (data: { matchId: string; mode?: LobbyModeId }) => void;
   'lobby:invited': (data: { code: string; from: PublicUser; mode?: LobbyModeId }) => void;
+  /** A friend you invited turned the invitation down. */
+  'lobby:declined': (data: { code: string; from: PublicUser }) => void;
   'error:message': (data: { message: string }) => void;
   'presence:update': (data: { userId: string; online: boolean }) => void;
   'friends:changed': () => void;
@@ -145,6 +147,7 @@ export interface ClientToServerEvents {
   'lobby:leave': () => void;
   'lobby:start': (ack: (res: { ok: boolean; error?: string }) => void) => void;
   'lobby:invite': (data: { userId: string }) => void;
+  'lobby:decline': (data: { code: string }) => void;
   'queue:join': (data: { mode: PlayableModeId }) => void;
   'queue:leave': () => void;
 }

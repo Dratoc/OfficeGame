@@ -1,4 +1,4 @@
-import { GAME_MODES, type LobbyModeId, type LobbyState, type PlayableModeId } from '@inbox/shared';
+import { GAME_MODES, type LobbyModeId, type LobbyState, type PlayableModeId, type PublicUser } from '@inbox/shared';
 import { useEffect } from 'react';
 import { TopBar } from './components/TopBar';
 import { Sidebar } from './components/Sidebar';
@@ -22,6 +22,7 @@ import { useApp } from './lib/store';
 import { getSocket } from './lib/socket';
 import { backgroundAlert, installAlerts, setUnreadCount } from './lib/alerts';
 import { AlertsPrompt } from './components/AlertsMenu';
+import { InviteWindow } from './components/InviteWindow';
 
 function useRealtime(enabled: boolean) {
   useEffect(() => {
@@ -33,12 +34,23 @@ function useRealtime(enabled: boolean) {
       const from = mail.from?.username ?? 'Inbox Arena';
       const challenged = mail.kind === 'challenge' && mail.challenge?.status === 'pending' && mail.challenge.opponentId === mail.to.id;
       const open = () => useApp.getState().go({ kind: 'mail', folder: 'inbox', mailId: mail.id });
-      st.toast({
-        title: challenged ? `${from} te envió un desafío` : `Nuevo correo de ${from}`,
-        body: mail.subject,
-        tone: 'mail',
-        action: { label: 'Abrir', run: open },
-      });
+      if (challenged && mail.from && mail.challenge) {
+        // A challenge opens as a mail window that waits for an answer.
+        st.addInvite({
+          id: `challenge:${mail.challenge.id}`,
+          kind: 'challenge',
+          from: mail.from,
+          subject: mail.subject,
+          body: mail.body,
+          mode: mail.challenge.mode,
+          at: mail.createdAt,
+          challengeId: mail.challenge.id,
+          mailId: mail.id,
+          expiresAt: mail.challenge.expiresAt,
+        });
+      } else {
+        st.toast({ title: `Nuevo correo de ${from}`, body: mail.subject, tone: 'mail', action: { label: 'Abrir', run: open } });
+      }
       if (challenged) backgroundAlert({ title: `${from} te envió un desafío`, body: mail.subject, tag: `challenge:${mail.id}`, important: true, counted: true, onClick: open });
     };
     const onAccepted = ({ matchId }: { matchId: string }) => {
@@ -68,7 +80,11 @@ function useRealtime(enabled: boolean) {
         important: true,
       });
     };
-    const onLobby = (lobby: LobbyState | null) => useApp.setState({ lobby });
+    const onLobby = (lobby: LobbyState | null) => {
+      useApp.setState({ lobby });
+      // Joined the room some other way (the code, the notification): its invitation is answered.
+      if (lobby) useApp.getState().removeInvite(`room:${lobby.code}`);
+    };
     const onLobbyStarted = ({ matchId, mode }: { matchId: string; mode?: LobbyModeId }) => {
       const race = mode === 'chairs';
       const title = mode === 'zombies' ? '¡Vienen los zombis!' : mode === 'sales' ? '¡Abre el local!' : race ? '¡La carrera empieza!' : '¡La pelea empieza!';
@@ -82,16 +98,32 @@ function useRealtime(enabled: boolean) {
       void getSocket()
         .emitWithAck('lobby:join', { code })
         .then((r) => (r.ok ? useApp.getState().go({ kind: 'rooms' }) : useApp.getState().toast({ title: r.error ?? 'No se pudo entrar', tone: 'error' })));
-    const onInvited = ({ code, from, mode }: { code: string; from: { username: string }; mode?: LobbyModeId }) => {
-      const game = GAME_MODES[mode ?? 'office'].name;
-      backgroundAlert({ title: `${from.username} te invita a una sala de ${game}`, body: `Código ${code}. Haz clic para unirte.`, tag: `invite:${code}`, important: true, onClick: () => joinRoom(code) });
-      useApp.getState().toast({
-        title: `${from.username} te invita a una sala de ${game}`,
-        body: `Código ${code}`,
-        tone: 'success',
-        action: { label: 'Unirme', run: () => joinRoom(code) },
+    const onInvited = ({ code, from, mode }: { code: string; from: PublicUser; mode?: LobbyModeId }) => {
+      const info = GAME_MODES[mode ?? 'office'];
+      backgroundAlert({
+        title: `${from.username} te invita a una sala de ${info.name}`,
+        body: `Código ${code}. Haz clic para unirte.`,
+        tag: `invite:${code}`,
+        important: true,
+        onClick: () => {
+          useApp.getState().removeInvite(`room:${code}`);
+          joinRoom(code);
+        },
+      });
+      useApp.getState().addInvite({
+        id: `room:${code}`,
+        kind: 'room',
+        from,
+        subject: `${from.username} te invita a una sala de ${info.name}`,
+        body: `Hola, armé una sala privada de ${info.name} y falta gente. ¿Te sumas? Entramos hasta ${info.maxPlayers} y el anfitrión empieza cuando estén todos.`,
+        mode: mode ?? 'office',
+        at: new Date().toISOString(),
+        code,
       });
     };
+    const onDeclined = ({ from }: { from: PublicUser }) =>
+      useApp.getState().toast({ title: `${from.username} no puede ahora`, body: 'Rechazó tu invitación a la sala.', tone: 'info' });
+    s.on('lobby:declined', onDeclined);
     s.on('lobby:state', onLobby);
     s.on('lobby:started', onLobbyStarted);
     s.on('lobby:invited', onInvited);
@@ -110,6 +142,7 @@ function useRealtime(enabled: boolean) {
       s.off('lobby:state', onLobby);
       s.off('lobby:started', onLobbyStarted);
       s.off('lobby:invited', onInvited);
+      s.off('lobby:declined', onDeclined);
       s.off('queue:status', onQueue);
       s.off('queue:matched', onMatched);
       s.off('friends:changed', onSocial);
@@ -158,6 +191,7 @@ export function App() {
       <QuickMatch />
       <Toasts />
       <AlertsPrompt />
+      <InviteWindow />
     </div>
   );
 }

@@ -109,6 +109,14 @@ export class Lobbies {
     return null;
   }
 
+  /** A friend turned down an invitation: tell the host, if the room is still open. */
+  async decline(userId: string, code: string): Promise<void> {
+    const lobby = this.byCode.get(code.toUpperCase());
+    if (!lobby || lobby.members.includes(userId)) return;
+    const from = await getPublicUser(userId);
+    if (from) toUser(lobby.hostId, 'lobby:declined', { code: lobby.code, from });
+  }
+
   /** Sends a friend a notice with the room code. Only friends can be invited. */
   async invite(userId: string, friendId: string): Promise<void> {
     const lobby = this.byUser.get(userId);

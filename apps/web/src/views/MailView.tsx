@@ -130,6 +130,7 @@ function Reading({ mail, folder }: { mail: MailDto; folder: Folder }) {
     setBusy(true);
     try {
       const { matchId } = await api<{ matchId: string }>(`/api/challenges/${ch!.id}/accept`, { method: 'POST' });
+      useApp.getState().removeInvite(`challenge:${ch!.id}`);
       go({ kind: 'battle', matchId });
     } catch (e) {
       toast({ title: 'No se pudo aceptar', body: e instanceof ApiError ? e.message : undefined, tone: 'error' });
@@ -142,6 +143,7 @@ function Reading({ mail, folder }: { mail: MailDto; folder: Folder }) {
     setBusy(true);
     try {
       await api(`/api/challenges/${ch!.id}/decline`, { method: 'POST' });
+      useApp.getState().removeInvite(`challenge:${ch!.id}`);
       toast({ title: 'Desafío rechazado', body: 'Le avisamos con mucha diplomacia.' });
       void loadMail(folder);
     } catch (e) {
