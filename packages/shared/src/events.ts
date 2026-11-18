@@ -4,6 +4,7 @@ import { LOBBY_MODES, PLAYABLE_MODES, type GameModeId, type LobbyModeId, type Pl
 import type { Prompt } from './prompts';
 import type { OfficeFrame, OfficeInputBatch, PowerId } from './office';
 import type { ChairsFrame, ChairsInputBatch } from './chairs';
+import type { SalesFrame, SalesInputBatch } from './sales';
 import type { MailDto, MatchSummaryDto, PublicUser } from './api';
 
 /** Socket.IO protocol. Every client → server payload is validated with these schemas. */
@@ -64,7 +65,7 @@ export interface WordResultEvent {
   nextIndex: number;
 }
 
-/** A private room (Office Battle or Chair Race) before the match starts. */
+/** A private room (Office Battle, Chair Race or A Toda Máquina) before the match starts. */
 export interface LobbyState {
   code: string;
   /** What the host picked to play. */
@@ -85,6 +86,8 @@ export interface ServerToClientEvents {
   'match:frame': (data: { matchId: string; frame: OfficeFrame }) => void;
   /** Chair Race: the authoritative state of the race, every simulation tick. */
   'chairs:frame': (data: { matchId: string; frame: ChairsFrame }) => void;
+  /** A Toda Máquina: the authoritative state of the shift, every simulation tick. */
+  'sales:frame': (data: { matchId: string; frame: SalesFrame }) => void;
   /** Your private room changed; null when you are no longer in one. */
   'lobby:state': (state: LobbyState | null) => void;
   'lobby:started': (data: { matchId: string; mode?: LobbyModeId }) => void;
@@ -106,6 +109,8 @@ export interface ClientToServerEvents {
   'office:input': (data: OfficeInputBatch) => void;
   /** Chair Race: a few steps of input (steer, throttle, throw, hop). */
   'chairs:input': (data: ChairsInputBatch) => void;
+  /** A Toda Máquina: a few steps of input (move, press or hold the action). */
+  'sales:input': (data: SalesInputBatch) => void;
   /** Office Battle: pick two powers in the lobby. */
   'room:loadout': (data: { matchId: string; powers: PowerId[] }) => void;
   /** The mode is optional; without it the room plays Office Battle. */

@@ -70,6 +70,8 @@ export interface FinalizeInput {
   abandoned: Set<string>;
   /** compare(a, b) > 0 if a beat b */
   compare: (a: string, b: string) => number;
+  /** Cooperative modes: everyone still playing shares this result, and ratings do not change. */
+  teamResult?: 'win' | 'loss';
 }
 
 export interface Standing {
@@ -83,9 +85,15 @@ export interface Standing {
  * `compare`; whoever ends alone in first place wins, a shared first place is a draw, and
  * everyone else loses. Players who abandoned rank last.
  */
-export function decideResults(input: Pick<FinalizeInput, 'outcomes' | 'abandoned' | 'compare'>): Map<string, Standing> {
+export function decideResults(input: Pick<FinalizeInput, 'outcomes' | 'abandoned' | 'compare' | 'teamResult'>): Map<string, Standing> {
   const ids = input.outcomes.map((o) => o.userId);
   const res = new Map<string, Standing>();
+  if (input.teamResult) {
+    // One team: whoever stayed shares the result and the first place.
+    const team = input.teamResult;
+    ids.forEach((id) => res.set(id, input.abandoned.has(id) ? { result: 'abandon', place: ids.length } : { result: team, place: 1 }));
+    return res;
+  }
   const active = ids.filter((id) => !input.abandoned.has(id));
   const gone = ids.filter((id) => input.abandoned.has(id));
   if (active.length === 0) {
@@ -127,14 +135,14 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
     const users = await tx.user.findMany({ where: { id: { in: ids } }, select: { id: true, username: true } });
     const nameOf = new Map(users.map((u) => [u.id, u.username]));
     let winnerId: string | null = null;
-    const deltas = allAbandoned ? ids.map(() => 0) : multiEloDeltas(ids.map((id) => ({ rating: byId.get(id)!.rating, place: standings.get(id)!.place })));
+    const deltas = allAbandoned || input.teamResult ? ids.map(() => 0) : multiEloDeltas(ids.map((id) => ({ rating: byId.get(id)!.rating, place: standings.get(id)!.place })));
     const deltaOf = new Map(ids.map((id, i) => [id, deltas[i]!]));
 
     for (const o of input.outcomes) {
       const me = byId.get(o.userId)!;
       const oppId = ids.find((id) => id !== o.userId)!;
       const { result, place } = standings.get(o.userId)!;
-      if (result === 'win') winnerId = o.userId;
+      if (result === 'win' && !input.teamResult) winnerId = o.userId;
 
       const delta = deltaOf.get(o.userId)!;
       const xpGained = xpForResult(result, o.correctWords, place, n);
@@ -200,6 +208,33 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
       }
 
       const oppName = nameOf.get(oppId) ?? 'tu rival';
+      if (input.teamResult) {
+        const days = o.wpm - 1;
+        const team = ids.filter((id) => id !== o.userId).map((id) => nameOf.get(id) ?? '').filter(Boolean);
+        const coopSubject =
+          result === 'abandon'
+            ? `${GAME_MODES[input.mode].name}: dejaste el turno`
+            : days >= 1
+              ? `${GAME_MODES[input.mode].name}: ${days === 1 ? '1 jornada cumplida' : `${days} jornadas cumplidas`}, ${o.correctChars} puntos`
+              : `${GAME_MODES[input.mode].name}: no alcanzaron la meta del primer día`;
+        const coopBody = [
+          days >= 1
+            ? 'Estimado/a ejecutivo/a de ventas:\n\nGerencia comercial felicita al equipo por el turno. Las sucursales recibieron sus máquinas.'
+            : 'Estimado/a ejecutivo/a de ventas:\n\nLos clientes se enojaron antes de cumplir la meta del día. Seguros ya está revisando los daños.',
+          team.length ? `\nEquipo: tú, ${team.join(', ')}.` : '\nAtendiste el turno sin compañeros.',
+          `Llegaron a la jornada ${o.wpm} con ${o.correctChars} puntos. Clientes bien atendidos: ${o.accuracy}%.`,
+          `Pasos del pedido que hiciste: ${o.correctWords}. Entregas equivocadas: ${o.errors}.`,
+          `Experiencia ganada: +${xpGained} XP. Doblones: +${coins + bonus}. Rating sin cambios en los modos cooperativos.`,
+          newLevel > me.level ? `\n¡Subiste al nivel ${newLevel}!` : '',
+          unlocked.length ? `Nuevos objetos en tu armería: ${unlocked.map((id) => ITEMS_BY_ID.get(id)?.name ?? id).join(', ')}.` : '',
+          earned.length ? `Logros desbloqueados: ${earned.map((id) => `«${ACHIEVEMENTS_BY_ID.get(id)?.name ?? id}»`).join(', ')}.` : '',
+          '\nAtentamente,\nGerencia Comercial',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        mails.push(await sendMail({ toUserId: o.userId, kind: 'result', subject: coopSubject, body: coopBody, matchId: input.matchId }, tx));
+        continue;
+      }
       const subject = n > 2
         ? result === 'abandon'
           ? `${GAME_MODES[input.mode].name}: abandonaste la carrera`

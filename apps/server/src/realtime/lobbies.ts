@@ -13,7 +13,7 @@ interface Lobby {
 }
 
 /**
- * Private rooms for Office Battle or Chair Race. A host creates a room and shares its code (or
+ * Private rooms for Office Battle, Chair Race or the cooperative A Toda Máquina. A host creates a room and shares its code (or
  * invites friends); up to four players gather, the host picks the mode and starts the match,
  * which then runs like any other.
  * Rooms live in memory in the process that runs the matches.
@@ -97,7 +97,7 @@ export class Lobbies {
     const lobby = this.byUser.get(userId);
     if (!lobby) return 'No estás en una sala';
     if (lobby.hostId !== userId) return 'Solo quien creó la sala puede empezar';
-    if (lobby.members.length < 2) return 'Hacen falta al menos 2 jugadores';
+    if (lobby.members.length < GAME_MODES[lobby.mode].minPlayers) return `Hacen falta al menos ${GAME_MODES[lobby.mode].minPlayers} jugadores`;
     const members = [...lobby.members];
     this.byCode.delete(lobby.code);
     for (const id of members) this.byUser.delete(id);

@@ -13,6 +13,7 @@ import { LoadoutBadges, PowerPicker, saveLoadout, savedLoadout } from '../battle
 
 const OfficeStage = lazy(() => import('../battle/OfficeStage'));
 const ChairsStage = lazy(() => import('../battle/ChairsStage'));
+const SalesStage = lazy(() => import('../battle/SalesStage'));
 
 const HOW_TO: Record<string, string> = {
   typing: 'Escribe cada palabra y pulsa espacio. Pegar texto no está permitido.',
@@ -22,6 +23,8 @@ const HOW_TO: Record<string, string> = {
   racing: `Escribe cada palabra y pulsa espacio. Gana quien llegue primero a ${RACE_LENGTH} palabras.`,
   office: 'WASD o flechas para moverte, J o clic para atacar, K o clic derecho para bloquear (mantener), Espacio para esquivar y Q / E para tus poderes. Gana el último en pie, o quien tenga más vida al final.',
   chairs: 'W o ↑ para acelerar, S o ↓ para frenar, A / D para girar, Espacio o clic para lanzar bolas de papel hacia adelante y Q / E para saltar a un lado. Acertarle a otro te da turbo. Gana quien complete 3 vueltas primero.',
+  sales:
+    'Cooperativo: WASD o flechas para caminar, E o Espacio para tomar, dejar y usar (mantén en los escritorios). Cada uno tiene su zona del local: pasen los papeles y las máquinas por los mesones de traspaso. Cumplan la meta de cada jornada antes de que se acabe el tiempo y no dejen que 3 clientes se vayan enojados.',
   puzzle: `Completa series, encuentra al intruso, ordena letras y sigue patrones. Gana quien resuelva ${PUZZLE_GOAL} primero (opciones con el mouse o con 1, 2, 3 y 4).`,
 };
 
@@ -182,7 +185,9 @@ export function BattleView({ matchId }: { matchId: string }) {
         <div className="battle-title">
           <span className="battle-kicker">{info.name}</span>
           <strong>
-            {everyone.length > 2 ? (
+            {mode === 'sales' ? (
+              `Equipo de ${everyone.length}: ${everyone.map((p) => p.user.username).join(', ')}`
+            ) : everyone.length > 2 ? (
               `${mode === 'racing' || mode === 'chairs' ? 'Carrera' : 'Partida'} de ${everyone.length} jugadores`
             ) : (
               <>
@@ -201,11 +206,11 @@ export function BattleView({ matchId }: { matchId: string }) {
           <div className="lobby-mode">
             <strong>{info.name}</strong>
             <span>
-              {info.tagline} · {Math.round(info.durationMs / 1000)} segundos
+              {info.tagline} · {mode === 'sales' ? 'jornadas sin fin, hasta que los clientes se enojen' : `${Math.round(info.durationMs / 1000)} segundos`}
             </span>
           </div>
-          <div className={`lobby-stage ${everyone.length > 2 ? 'crowd' : ''}`}>
-            {(everyone.length > 2 ? everyone : [meP, opp]).map(
+          <div className={`lobby-stage ${everyone.length > 2 || mode === 'sales' ? 'crowd' : ''}`}>
+            {(everyone.length > 2 || mode === 'sales' ? everyone : [meP, opp]).map(
               (p, i) =>
                 p && (
                   <motion.div key={p.user.id} className={`lobby-player ${i === 1 && everyone.length <= 2 ? 'flip' : ''}`} initial={{ opacity: 0, x: i === 0 ? -40 : 40 }} animate={{ opacity: 1, x: 0 }}>
@@ -216,13 +221,15 @@ export function BattleView({ matchId }: { matchId: string }) {
                   </motion.div>
                 ),
             )}
-            {everyone.length <= 2 && <div className="lobby-vs">VS</div>}
+            {everyone.length <= 2 && mode !== 'sales' && <div className="lobby-vs">VS</div>}
           </div>
           {mode === 'office' && <PowerPicker value={loadout} onChange={pickPowers} disabled={meP?.ready} />}
           <div className="lobby-actions">
             {meP?.ready ? (
               <p className="muted">
-                {everyone.length > 2 ? `Esperando al resto. La ${mode === 'office' ? 'pelea' : 'carrera'} comienza cuando todos estén listos.` : `Esperando a ${opp?.user.username}. La batalla comienza cuando ambos estén listos.`}
+                {mode === 'sales'
+                  ? 'Esperando al resto del equipo. El local abre cuando todos estén listos.'
+                  : everyone.length > 2 ? `Esperando al resto. La ${mode === 'office' ? 'pelea' : 'carrera'} comienza cuando todos estén listos.` : `Esperando a ${opp?.user.username}. La batalla comienza cuando ambos estén listos.`}
               </p>
             ) : (
               <button className="btn btn-primary btn-lg" disabled={mode === 'office' && loadout.length !== 2} onClick={() => getSocket().emit('room:ready', { matchId })}>
@@ -246,7 +253,13 @@ export function BattleView({ matchId }: { matchId: string }) {
         </Suspense>
       )}
 
-      {mode !== 'office' && mode !== 'chairs' && (phase === 'countdown' || phase === 'playing' || phase === 'finished') && meP && opp && (
+      {mode === 'sales' && (phase === 'countdown' || phase === 'playing' || phase === 'finished') && meP && room?.startAt && room.endAt && (
+        <Suspense fallback={<div className="office-stage office-loading">Abriendo el local…</div>}>
+          <SalesStage matchId={matchId} meId={meP.user.id} players={everyone.map((p) => p.user)} startAt={room.startAt} endAt={room.endAt} />
+        </Suspense>
+      )}
+
+      {mode !== 'office' && mode !== 'chairs' && mode !== 'sales' && (phase === 'countdown' || phase === 'playing' || phase === 'finished') && meP && opp && (
         <div className="arena">
           <div className="timer">
             <div className="timer-fill" style={{ width: `${(remaining / total) * 100}%` }} />

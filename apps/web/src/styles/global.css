@@ -749,7 +749,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .rooms-mode span, .rooms-mode-current span { display: flex; flex-direction: column; gap: 2px; }
 .rooms-mode small, .rooms-mode-current small { color: var(--muted); font-size: 12.5px; line-height: 1.35; }
 .rooms-mode-current { margin-top: 14px; }
-@media (min-width: 721px) { .chairs-stage { height: min(74vh, 700px); } }
+@media (min-width: 721px) { .chairs-stage { height: min(74vh, 700px); } .sales-stage { height: min(76vh, 720px); } }
 @media (max-width: 700px) {
   .rooms-start { grid-template-columns: 1fr; }
   .rooms > .rooms-modes { flex-direction: column; }

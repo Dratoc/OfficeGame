@@ -1,23 +1,26 @@
 import { lazy, Suspense, useState } from 'react';
-import { ArrowLeft, Zap } from 'lucide-react';
-import type { PowerId } from '@inbox/shared';
+import { ArrowLeft, Users, Zap } from 'lucide-react';
+import type { PowerId, SalesWorld } from '@inbox/shared';
 import { useApp } from '../lib/store';
 import { startQuickMatch } from '../components/QuickMatch';
 import { PowerPicker, saveLoadout, savedLoadout } from '../battle/PowerPicker';
 
 const PracticeStage = lazy(() => import('../battle/PracticeStage'));
 const ChairsPracticeStage = lazy(() => import('../battle/ChairsPracticeStage'));
+const SalesPracticeStage = lazy(() => import('../battle/SalesPracticeStage'));
 
 const GAMES = [
   { id: 'office', label: 'Pelea' },
   { id: 'chairs', label: 'Carrera de sillas' },
+  { id: 'sales', label: 'Venta de maquinaria' },
 ] as const;
 type Game = (typeof GAMES)[number]['id'];
 const GAME_KEY = 'inbox-arena:practice-game';
 
 function savedGame(): Game {
   try {
-    return localStorage.getItem(GAME_KEY) === 'chairs' ? 'chairs' : 'office';
+    const g = localStorage.getItem(GAME_KEY);
+    return g === 'chairs' || g === 'sales' ? g : 'office';
   } catch {
     return 'office';
   }
@@ -29,7 +32,14 @@ const LEVELS = [
   { id: 0.85, label: 'Difícil' },
 ] as const;
 
-/** Office Battle or the chair race against one to three bots, to learn the moves, powers and the track. */
+const KICKER: Record<Game, string> = { office: 'Office Battle', chairs: 'Carrera de Sillas', sales: 'A Toda Máquina' };
+
+function salesSummary(w: SalesWorld): string {
+  const days = w.day - 1;
+  return `${days === 0 ? 'No cumplieron la meta del primer día' : days === 1 ? '1 jornada cumplida' : `${days} jornadas cumplidas`} · ${w.score} puntos · ${w.served} clientes atendidos`;
+}
+
+/** Office Battle or the chair race against one to three bots, or a sales shift with bot teammates. */
 export function PracticeView() {
   const { me, go, queue } = useApp();
   const [game, setGame] = useState<Game>(savedGame);
@@ -51,9 +61,15 @@ export function PracticeView() {
           <ArrowLeft size={16} /> Bandeja
         </button>
         <div className="battle-title">
-          <span className="battle-kicker">{game === 'chairs' ? 'Carrera de Sillas' : 'Office Battle'} · Práctica</span>
+          <span className="battle-kicker">{KICKER[game]} · Práctica</span>
           <strong>
-            {me.username} <span className="vs">VS</span> {bots === 1 ? 'Gerente Dragón' : `${bots} bots`}
+            {game === 'sales' ? (
+              bots === 0 ? `${me.username}, solo en el local` : `${me.username} y ${bots === 1 ? '1 compañero bot' : `${bots} compañeros bot`}`
+            ) : (
+              <>
+                {me.username} <span className="vs">VS</span> {bots === 1 ? 'Gerente Dragón' : `${bots} bots`}
+              </>
+            )}
           </strong>
         </div>
         <div className="practice-levels">
@@ -64,6 +80,7 @@ export function PracticeView() {
                 className={`chip ${game === g.id ? 'active' : ''}`}
                 onClick={() => {
                   setGame(g.id);
+                  if (g.id !== 'sales' && bots === 0) setBots(1);
                   try {
                     localStorage.setItem(GAME_KEY, g.id);
                   } catch {
@@ -76,8 +93,8 @@ export function PracticeView() {
               </button>
             ))}
           </div>
-          <div role="group" aria-label="Cantidad de rivales" className="chip-row">
-            {[1, 2, 3].map((n) => (
+          <div role="group" aria-label={game === 'sales' ? 'Cantidad de compañeros' : 'Cantidad de rivales'} className="chip-row">
+            {(game === 'sales' ? [0, 1, 2, 3] : [1, 2, 3]).map((n) => (
               <button
                 key={n}
                 className={`chip ${bots === n ? 'active' : ''}`}
@@ -86,7 +103,7 @@ export function PracticeView() {
                   restart();
                 }}
               >
-                {n === 1 ? '1 rival' : `${n} rivales`}
+                {game === 'sales' ? (n === 0 ? 'Solo' : n === 1 ? '1 compañero' : `${n} compañeros`) : n === 1 ? '1 rival' : `${n} rivales`}
               </button>
             ))}
           </div>
@@ -107,7 +124,9 @@ export function PracticeView() {
         </div>
       </header>
       <Suspense fallback={<div className="office-stage office-loading">Cargando la oficina…</div>}>
-        {game === 'chairs' ? (
+        {game === 'sales' ? (
+          <SalesPracticeStage key={`s${round}`} me={me} skill={skill} bots={bots} onEnd={(w) => setResult(salesSummary(w))} />
+        ) : game === 'chairs' ? (
           <ChairsPracticeStage key={`c${round}`} me={me} skill={skill} bots={bots} onEnd={setResult} />
         ) : (
           <PracticeStage key={round} me={me} skill={skill} bots={bots} powers={powers.length === 2 ? powers : savedLoadout()} onEnd={setResult} />
@@ -116,12 +135,19 @@ export function PracticeView() {
       <div className="practice-actions">
         {result && (
           <button className="btn btn-primary" onClick={restart}>
-            {game === 'chairs' ? 'Otra carrera' : 'Revancha'}
+            {game === 'sales' ? 'Otro turno' : game === 'chairs' ? 'Otra carrera' : 'Revancha'}
           </button>
         )}
-        <button className="btn btn-ghost" disabled={queue.searching} onClick={() => startQuickMatch(game)}>
-          <Zap size={16} /> Buscar rivales de verdad
-        </button>
+        {game === 'sales' && result && <strong className="small">{result}</strong>}
+        {game === 'sales' ? (
+          <button className="btn btn-ghost" onClick={() => go({ kind: 'rooms' })}>
+            <Users size={16} /> Jugar con tu equipo en una sala
+          </button>
+        ) : (
+          <button className="btn btn-ghost" disabled={queue.searching} onClick={() => startQuickMatch(game)}>
+            <Zap size={16} /> Buscar rivales de verdad
+          </button>
+        )}
         <span className="muted small">La práctica no da experiencia ni cambia tu rating.</span>
       </div>
       {game === 'office' && (

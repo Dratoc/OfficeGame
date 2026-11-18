@@ -1,6 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
-import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema, officeInputBatchSchema, chairsInputBatchSchema, lobbyModeSchema, loadoutPickSchema, lobbyCodeSchema, lobbyInviteSchema } from '@inbox/shared';
+import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema, officeInputBatchSchema, chairsInputBatchSchema, salesInputBatchSchema, lobbyModeSchema, loadoutPickSchema, lobbyCodeSchema, lobbyInviteSchema } from '@inbox/shared';
 import { SESSION_COOKIE, readCookie, userIdFromToken } from '../lib/auth';
 import { setIO, toUser, userRoom, type IO } from './notify';
 import { engine } from './matchEngine';
@@ -97,6 +97,13 @@ export function attachSocket(server: HttpServer): IO {
       engine.input(userId, parsed.data, 'chairs');
     });
 
+    socket.on('sales:input', (data) => {
+      if (!allowInput()) return;
+      const parsed = salesInputBatchSchema.safeParse(data);
+      if (!parsed.success || !joined.has(parsed.data.matchId)) return;
+      engine.input(userId, parsed.data, 'sales');
+    });
+
     socket.on('room:loadout', (data) => {
       if (!allow()) return;
       const parsed = loadoutPickSchema.safeParse(data);
@@ -104,7 +111,7 @@ export function attachSocket(server: HttpServer): IO {
       engine.setOption(parsed.data.matchId, userId, parsed.data.powers);
     });
 
-    // Private rooms (Office Battle or Chair Race).
+    // Private rooms (Office Battle, Chair Race or A Toda Máquina).
     socket.on('lobby:create', async (data, cb) => {
       // Older clients send only the callback: those rooms play Office Battle.
       const ack = typeof data === 'function' ? (data as typeof cb) : cb;
