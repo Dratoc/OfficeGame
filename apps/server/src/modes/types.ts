@@ -1,4 +1,4 @@
-import type { GameModeId, Prompt } from '@inbox/shared';
+import type { GameModeId, MatchResult, Prompt } from '@inbox/shared';
 
 export interface ActionContext {
   now: number;
@@ -44,4 +44,6 @@ export interface GameMode<State, Action, ActionResult, Frame = never> {
   tickMs?: number;
   /** Advances the simulation; the frame it returns goes to every player. */
   tick?(state: State, ctx: TickContext): Frame | null;
+  /** Cooperative modes: the whole team wins or loses together, and ratings do not change. */
+  teamResult?(state: State): Exclude<MatchResult, 'abandon' | 'draw'>;
 }

@@ -4,6 +4,7 @@ import {
   Copy,
   Crown,
   DoorOpen,
+  Forklift,
   LogOut,
   Send,
   Swords,
@@ -22,6 +23,12 @@ const MODE_TEXT: Record<LobbyModeId, { short: string; blurb: string; start: stri
     start: "Empezar pelea",
     wait: "El anfitrión empieza la pelea",
   },
+  sales: {
+    short: "Venta de maquinaria",
+    blurb: "Cooperativo: atiendan clientes, timbren órdenes y entreguen la máquina correcta.",
+    start: "Abrir el local",
+    wait: "El anfitrión abre el local",
+  },
   chairs: {
     short: "Carrera de sillas",
     blurb: "3 vueltas en silla de oficina: dispara hacia adelante y acelera con cada acierto.",
@@ -31,7 +38,7 @@ const MODE_TEXT: Record<LobbyModeId, { short: string; blurb: string; start: stri
 };
 
 function ModeIcon({ mode, size = 16 }: { mode: LobbyModeId; size?: number }) {
-  return mode === "chairs" ? <Armchair size={size} /> : <Swords size={size} />;
+  return mode === "chairs" ? <Armchair size={size} /> : mode === "sales" ? <Forklift size={size} /> : <Swords size={size} />;
 }
 
 /** Choice between the modes a private room can play. */
@@ -59,7 +66,7 @@ function ModeChoice({ value, onChange, disabled }: { value: LobbyModeId; onChang
   );
 }
 
-/** Private rooms: create one, pick Office Battle or Chair Race, share the code, and the host starts it for 2 to 4. */
+/** Private rooms: create one, pick Office Battle, Chair Race or A Toda Máquina, share the code, and the host starts it for 2 to 4. */
 export function RoomsView() {
   const { me, lobby, toast, socialVersion } = useApp();
   const [code, setCode] = useState("");
@@ -105,8 +112,9 @@ export function RoomsView() {
             <DoorOpen size={22} /> Salas de batalla
           </h2>
           <p className="muted">
-            Arma una partida privada de 2 a 4 jugadores: una pelea en la
-            oficina o una carrera de sillas.
+            Arma una partida privada de hasta 4 jugadores: una pelea en la
+            oficina, una carrera de sillas o un turno cooperativo vendiendo
+            maquinaria.
           </p>
         </header>
         <div className="rooms-start">
@@ -237,13 +245,13 @@ export function RoomsView() {
         {isHost ? (
           <button
             className="btn btn-primary"
-            disabled={busy || lobby.members.length < 2}
+            disabled={busy || lobby.members.length < GAME_MODES[lobby.mode].minPlayers}
             onClick={() =>
               void run(() => getSocket().emitWithAck("lobby:start"))
             }
           >
             <ModeIcon mode={lobby.mode} />{" "}
-            {lobby.members.length < 2
+            {lobby.members.length < GAME_MODES[lobby.mode].minPlayers
               ? "Esperando jugadores…"
               : MODE_TEXT[lobby.mode].start}
           </button>

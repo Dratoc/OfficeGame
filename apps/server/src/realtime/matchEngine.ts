@@ -9,6 +9,7 @@ import {
   type Answer,
   type OfficeInputBatch,
   type ChairsInputBatch,
+  type SalesInputBatch,
   type PowerId,
 } from '@inbox/shared';
 import { prisma } from '../lib/db';
@@ -169,7 +170,8 @@ export class MatchEngine {
             if (room.players.get(userId)!.sockets > 0) return;
             room.abandoned.add(userId);
             const remaining = [...room.players.keys()].filter((id) => !room.abandoned.has(id));
-            if (remaining.length <= 1 || (room.state && room.mode.isDone?.(room.state, remaining))) void this.finish(room);
+            // A team keeps playing while anyone is left; a fight needs a rival.
+            if (remaining.length <= (room.mode.teamResult ? 0 : 1) || (room.state && room.mode.isDone?.(room.state, remaining))) void this.finish(room);
           }, RECONNECT_WINDOW_MS),
         );
       }
@@ -267,6 +269,7 @@ export class MatchEngine {
     if (frame) {
       const io = getIO()?.to(matchRoom(room.matchId));
       if (room.modeId === 'chairs') io?.emit('chairs:frame', { matchId: room.matchId, frame });
+      else if (room.modeId === 'sales') io?.emit('sales:frame', { matchId: room.matchId, frame });
       else io?.emit('match:frame', { matchId: room.matchId, frame });
     }
     const remaining = [...room.players.keys()].filter((id) => !room.abandoned.has(id));
@@ -278,8 +281,8 @@ export class MatchEngine {
     }
   }
 
-  /** Inputs of a real-time mode (Office Battle, Chair Race). The mode must match the input kind. */
-  input(userId: string, data: OfficeInputBatch | ChairsInputBatch, kind: 'office' | 'chairs' = 'office'): boolean {
+  /** Inputs of a real-time mode (Office Battle, Chair Race, A Toda Máquina). The mode must match the input kind. */
+  input(userId: string, data: OfficeInputBatch | ChairsInputBatch | SalesInputBatch, kind: 'office' | 'chairs' | 'sales' = 'office'): boolean {
     const room = this.rooms.get(data.matchId);
     if (!room || !room.state || !room.mode.tick || !room.players.has(userId) || room.modeId !== kind) return false;
     if (room.phase !== 'playing' && room.phase !== 'countdown') return false;
@@ -303,6 +306,7 @@ export class MatchEngine {
         outcomes: ids.map((id) => room.mode.outcome(room.state, id)),
         abandoned: room.abandoned,
         compare: (a, b) => room.mode.compare(room.state, a, b),
+        teamResult: room.mode.teamResult?.(room.state),
       });
       this.broadcast(room);
       getIO()?.to(matchRoom(room.matchId)).emit('match:end', summary);

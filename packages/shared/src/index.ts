@@ -12,3 +12,5 @@ export * from './shop';
 export * from './office';
 export * from './chairs';
 export * from './chairsBot';
+export * from './sales';
+export * from './salesBot';
