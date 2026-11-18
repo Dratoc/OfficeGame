@@ -20,6 +20,8 @@ import { ContactsView } from './views/ContactsView';
 import { QuickMatch } from './components/QuickMatch';
 import { useApp } from './lib/store';
 import { getSocket } from './lib/socket';
+import { backgroundAlert, installAlerts, setUnreadCount } from './lib/alerts';
+import { AlertsPrompt } from './components/AlertsMenu';
 
 function useRealtime(enabled: boolean) {
   useEffect(() => {
@@ -29,17 +31,20 @@ function useRealtime(enabled: boolean) {
       const st = useApp.getState();
       st.receiveMail(mail);
       const from = mail.from?.username ?? 'Inbox Arena';
+      const challenged = mail.kind === 'challenge' && mail.challenge?.status === 'pending' && mail.challenge.opponentId === mail.to.id;
+      const open = () => useApp.getState().go({ kind: 'mail', folder: 'inbox', mailId: mail.id });
       st.toast({
-        title: mail.kind === 'challenge' && mail.challenge?.status === 'pending' && mail.challenge.opponentId === mail.to.id ? `${from} te envió un desafío` : `Nuevo correo de ${from}`,
+        title: challenged ? `${from} te envió un desafío` : `Nuevo correo de ${from}`,
         body: mail.subject,
         tone: 'mail',
-        action: { label: 'Abrir', run: () => useApp.getState().go({ kind: 'mail', folder: 'inbox', mailId: mail.id }) },
+        action: { label: 'Abrir', run: open },
       });
-      document.title = `(${useApp.getState().unread}) Inbox Arena`;
+      if (challenged) backgroundAlert({ title: `${from} te envió un desafío`, body: mail.subject, tag: `challenge:${mail.id}`, important: true, counted: true, onClick: open });
     };
     const onAccepted = ({ matchId }: { matchId: string }) => {
       const st = useApp.getState();
       if (st.view.kind === 'battle' && st.view.matchId === matchId) return;
+      backgroundAlert({ title: '¡Aceptaron tu desafío!', body: 'Tu rival te espera en la sala de batalla.', tag: `accepted:${matchId}`, important: true, onClick: () => useApp.getState().go({ kind: 'battle', matchId }) });
       st.toast({ title: '¡Desafío aceptado!', body: 'Tu rival te espera en la sala de batalla.', tone: 'success', action: { label: 'Entrar a la sala', run: () => useApp.getState().go({ kind: 'battle', matchId }) } });
     };
     const onError = (err: Error) => {
@@ -56,27 +61,33 @@ function useRealtime(enabled: boolean) {
           : { title: '¡Rival encontrado!', body: `Te enfrentas a ${opponent.username}.`, tone: 'success' },
       );
       st.go({ kind: 'battle', matchId });
+      backgroundAlert({
+        title: many ? (st.queue.mode === 'office' ? '¡Sala lista!' : '¡Carrera lista!') : '¡Rival encontrado!',
+        body: `${many ? 'Contra' : 'Te enfrentas a'} ${(opponents ?? [opponent]).map((o) => o.username).join(', ')}. Vuelve al juego.`,
+        tag: `match:${matchId}`,
+        important: true,
+      });
     };
     const onLobby = (lobby: LobbyState | null) => useApp.setState({ lobby });
     const onLobbyStarted = ({ matchId }: { matchId: string }) => {
       useApp.setState({ lobby: null });
       useApp.getState().toast({ title: '¡La pelea empieza!', body: 'Elige tus poderes y prepárate.', tone: 'success' });
       useApp.getState().go({ kind: 'battle', matchId });
+      backgroundAlert({ title: '¡La pelea empieza!', body: 'Elige tus poderes y prepárate.', tag: `match:${matchId}`, important: true });
     };
-    const onInvited = ({ code, from }: { code: string; from: { username: string } }) =>
+    const joinRoom = (code: string) =>
+      void getSocket()
+        .emitWithAck('lobby:join', { code })
+        .then((r) => (r.ok ? useApp.getState().go({ kind: 'rooms' }) : useApp.getState().toast({ title: r.error ?? 'No se pudo entrar', tone: 'error' })));
+    const onInvited = ({ code, from }: { code: string; from: { username: string } }) => {
+      backgroundAlert({ title: `${from.username} te invita a una sala de Office Battle`, body: `Código ${code}. Haz clic para unirte.`, tag: `invite:${code}`, important: true, onClick: () => joinRoom(code) });
       useApp.getState().toast({
         title: `${from.username} te invita a una sala de Office Battle`,
         body: `Código ${code}`,
         tone: 'success',
-        action: {
-          label: 'Unirme',
-          run: () => {
-            void getSocket()
-              .emitWithAck('lobby:join', { code })
-              .then((r) => (r.ok ? useApp.getState().go({ kind: 'rooms' }) : useApp.getState().toast({ title: r.error ?? 'No se pudo entrar', tone: 'error' })));
-          },
-        },
+        action: { label: 'Unirme', run: () => joinRoom(code) },
       });
+    };
     s.on('lobby:state', onLobby);
     s.on('lobby:started', onLobbyStarted);
     s.on('lobby:invited', onInvited);
@@ -110,9 +121,8 @@ export function App() {
   const { me, authChecked, view, refreshMe, unread } = useApp();
   useEffect(() => void refreshMe(), [refreshMe]);
   useRealtime(!!me);
-  useEffect(() => {
-    document.title = unread ? `(${unread}) Inbox Arena` : 'Inbox Arena';
-  }, [unread]);
+  useEffect(() => installAlerts(), []);
+  useEffect(() => setUnreadCount(unread), [unread]);
 
   if (!authChecked) {
     return (
@@ -143,6 +153,7 @@ export function App() {
       <ComposeDialog />
       <QuickMatch />
       <Toasts />
+      <AlertsPrompt />
     </div>
   );
 }
