@@ -8,6 +8,7 @@ import {
   type RoomStateEvent,
   type Answer,
   type OfficeInputBatch,
+  type ChairsInputBatch,
   type PowerId,
 } from '@inbox/shared';
 import { prisma } from '../lib/db';
@@ -263,20 +264,24 @@ export class MatchEngine {
   tick(room: Room) {
     if ((room.phase !== 'playing' && room.phase !== 'countdown') || !room.state || !room.mode.tick || room.finishing) return;
     const frame = room.mode.tick(room.state, { now: this.now(), startAt: room.startAt!, endAt: room.endAt!, activeIds: this.activeIds(room) });
-    if (frame) getIO()?.to(matchRoom(room.matchId)).emit('match:frame', { matchId: room.matchId, frame });
+    if (frame) {
+      const io = getIO()?.to(matchRoom(room.matchId));
+      if (room.modeId === 'chairs') io?.emit('chairs:frame', { matchId: room.matchId, frame });
+      else io?.emit('match:frame', { matchId: room.matchId, frame });
+    }
     const remaining = [...room.players.keys()].filter((id) => !room.abandoned.has(id));
     if (room.mode.isDone?.(room.state, remaining)) {
-      // A knockout ends the fight; leave a moment for the fall to play out.
+      // A knockout ends the fight (or everyone crossed the line); leave a moment for it to play out.
       if (room.loop) clearInterval(room.loop);
       room.loop = null;
       room.timers.push(setTimeout(() => void this.finish(room), 1200));
     }
   }
 
-  /** Inputs of a real-time mode (Office Battle). */
-  input(userId: string, data: OfficeInputBatch): boolean {
+  /** Inputs of a real-time mode (Office Battle, Chair Race). The mode must match the input kind. */
+  input(userId: string, data: OfficeInputBatch | ChairsInputBatch, kind: 'office' | 'chairs' = 'office'): boolean {
     const room = this.rooms.get(data.matchId);
-    if (!room || !room.state || !room.mode.tick || !room.players.has(userId)) return false;
+    if (!room || !room.state || !room.mode.tick || !room.players.has(userId) || room.modeId !== kind) return false;
     if (room.phase !== 'playing' && room.phase !== 'countdown') return false;
     if (room.abandoned.has(userId)) return false;
     const res = room.mode.applyAction(room.state, userId, { inputs: data.inputs }, { now: this.now(), startAt: room.startAt!, endAt: room.endAt! }) as { accepted: boolean };

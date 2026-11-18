@@ -273,7 +273,8 @@ function addPartitions(group: THREE.Group, halfW: number, halfD: number) {
   }
 }
 
-function furniture(o: Obstacle): THREE.Group {
+/** One piece of office furniture, also used to decorate the Chair Race track. */
+export function furniture(o: Obstacle): THREE.Group {
   const g = new THREE.Group();
   g.position.set(o.x, 0, o.z);
   g.rotation.y = ((o.turn ?? 0) * Math.PI) / 2;

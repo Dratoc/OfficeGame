@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { MAX_WORD_LENGTH } from './typing';
-import { PLAYABLE_MODES, type GameModeId, type PlayableModeId } from './modes';
+import { LOBBY_MODES, PLAYABLE_MODES, type GameModeId, type LobbyModeId, type PlayableModeId } from './modes';
 import type { Prompt } from './prompts';
 import type { OfficeFrame, OfficeInputBatch, PowerId } from './office';
+import type { ChairsFrame, ChairsInputBatch } from './chairs';
 import type { MailDto, MatchSummaryDto, PublicUser } from './api';
 
 /** Socket.IO protocol. Every client → server payload is validated with these schemas. */
@@ -17,6 +18,7 @@ export const answerSchema = z.object({
   typedAt: z.number().finite(),
 });
 export const queueJoinSchema = z.object({ mode: z.enum(PLAYABLE_MODES) });
+export const lobbyModeSchema = z.object({ mode: z.enum(LOBBY_MODES) });
 export const timePingSchema = z.object({ t0: z.number().finite() });
 
 export type RoomJoin = z.infer<typeof roomJoinSchema>;
@@ -62,9 +64,11 @@ export interface WordResultEvent {
   nextIndex: number;
 }
 
-/** A private Office Battle room before the fight starts. */
+/** A private room (Office Battle or Chair Race) before the match starts. */
 export interface LobbyState {
   code: string;
+  /** What the host picked to play. */
+  mode: LobbyModeId;
   hostId: string;
   members: PublicUser[];
   max: number;
@@ -79,10 +83,12 @@ export interface ServerToClientEvents {
   'match:end': (summary: MatchSummaryDto) => void;
   /** Office Battle: the authoritative state of the fight, every simulation tick. */
   'match:frame': (data: { matchId: string; frame: OfficeFrame }) => void;
+  /** Chair Race: the authoritative state of the race, every simulation tick. */
+  'chairs:frame': (data: { matchId: string; frame: ChairsFrame }) => void;
   /** Your private room changed; null when you are no longer in one. */
   'lobby:state': (state: LobbyState | null) => void;
-  'lobby:started': (data: { matchId: string }) => void;
-  'lobby:invited': (data: { code: string; from: PublicUser }) => void;
+  'lobby:started': (data: { matchId: string; mode?: LobbyModeId }) => void;
+  'lobby:invited': (data: { code: string; from: PublicUser; mode?: LobbyModeId }) => void;
   'error:message': (data: { message: string }) => void;
   'presence:update': (data: { userId: string; online: boolean }) => void;
   'friends:changed': () => void;
@@ -98,9 +104,14 @@ export interface ClientToServerEvents {
   'match:answer': (data: Answer) => void;
   /** Office Battle: a few steps of input (move, attack, block, dodge). */
   'office:input': (data: OfficeInputBatch) => void;
+  /** Chair Race: a few steps of input (steer, throttle, throw, hop). */
+  'chairs:input': (data: ChairsInputBatch) => void;
   /** Office Battle: pick two powers in the lobby. */
   'room:loadout': (data: { matchId: string; powers: PowerId[] }) => void;
-  'lobby:create': (ack: (res: { ok: boolean; error?: string; code?: string }) => void) => void;
+  /** The mode is optional; without it the room plays Office Battle. */
+  'lobby:create': (data: { mode?: LobbyModeId }, ack: (res: { ok: boolean; error?: string; code?: string }) => void) => void;
+  /** The host changes what the room will play. */
+  'lobby:mode': (data: { mode: LobbyModeId }) => void;
   'lobby:join': (data: { code: string }, ack: (res: { ok: boolean; error?: string }) => void) => void;
   'lobby:leave': () => void;
   'lobby:start': (ack: (res: { ok: boolean; error?: string }) => void) => void;

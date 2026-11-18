@@ -10,3 +10,5 @@ export * from './api';
 export * from './achievements';
 export * from './shop';
 export * from './office';
+export * from './chairs';
+export * from './chairsBot';

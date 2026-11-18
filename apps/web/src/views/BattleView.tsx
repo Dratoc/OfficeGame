@@ -12,6 +12,7 @@ import { RaceTrack } from '../battle/RaceTrack';
 import { LoadoutBadges, PowerPicker, saveLoadout, savedLoadout } from '../battle/PowerPicker';
 
 const OfficeStage = lazy(() => import('../battle/OfficeStage'));
+const ChairsStage = lazy(() => import('../battle/ChairsStage'));
 
 const HOW_TO: Record<string, string> = {
   typing: 'Escribe cada palabra y pulsa espacio. Pegar texto no está permitido.',
@@ -20,6 +21,7 @@ const HOW_TO: Record<string, string> = {
   task: 'Elige la opción correcta de cada paso con el mouse o con las teclas 1, 2 y 3.',
   racing: `Escribe cada palabra y pulsa espacio. Gana quien llegue primero a ${RACE_LENGTH} palabras.`,
   office: 'WASD o flechas para moverte, J o clic para atacar, K o clic derecho para bloquear (mantener), Espacio para esquivar y Q / E para tus poderes. Gana el último en pie, o quien tenga más vida al final.',
+  chairs: 'W o ↑ para acelerar, S o ↓ para frenar, A / D para girar, Espacio o clic para lanzar bolas de papel hacia adelante y Q / E para saltar a un lado. Acertarle a otro te da turbo. Gana quien complete 3 vueltas primero.',
   puzzle: `Completa series, encuentra al intruso, ordena letras y sigue patrones. Gana quien resuelva ${PUZZLE_GOAL} primero (opciones con el mouse o con 1, 2, 3 y 4).`,
 };
 
@@ -181,7 +183,7 @@ export function BattleView({ matchId }: { matchId: string }) {
           <span className="battle-kicker">{info.name}</span>
           <strong>
             {everyone.length > 2 ? (
-              `${mode === 'racing' ? 'Carrera' : 'Partida'} de ${everyone.length} jugadores`
+              `${mode === 'racing' || mode === 'chairs' ? 'Carrera' : 'Partida'} de ${everyone.length} jugadores`
             ) : (
               <>
                 {meP?.user.username ?? '…'} <span className="vs">VS</span> {opp?.user.username ?? '…'}
@@ -238,7 +240,13 @@ export function BattleView({ matchId }: { matchId: string }) {
         </Suspense>
       )}
 
-      {mode !== 'office' && (phase === 'countdown' || phase === 'playing' || phase === 'finished') && meP && opp && (
+      {mode === 'chairs' && (phase === 'countdown' || phase === 'playing' || phase === 'finished') && meP && opp && room?.startAt && room.endAt && (
+        <Suspense fallback={<div className="office-stage office-loading">Preparando la pista…</div>}>
+          <ChairsStage matchId={matchId} meId={meP.user.id} players={everyone.map((p) => p.user)} startAt={room.startAt} endAt={room.endAt} />
+        </Suspense>
+      )}
+
+      {mode !== 'office' && mode !== 'chairs' && (phase === 'countdown' || phase === 'playing' || phase === 'finished') && meP && opp && (
         <div className="arena">
           <div className="timer">
             <div className="timer-fill" style={{ width: `${(remaining / total) * 100}%` }} />

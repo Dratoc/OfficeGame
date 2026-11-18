@@ -3,6 +3,7 @@ import {
   COINS_PER_ACHIEVEMENT,
   coinsForResult,
   GAME_MODES,
+  CHAIRS_LAPS,
   newAchievements,
   ITEMS_BY_ID,
   multiEloDeltas,
@@ -218,6 +219,8 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
         n > 2 && result !== 'abandon' ? `\nTerminaste en el ${place}.º lugar de ${n}.` : '',
         input.mode === 'office'
           ? `\n${GAME_MODES[input.mode].name}: diste ${o.correctWords} golpes, recibiste ${o.errors} y causaste ${o.correctChars} de daño.`
+          : input.mode === 'chairs'
+          ? `\n${GAME_MODES[input.mode].name}: completaste ${o.correctChars} de ${CHAIRS_LAPS} vueltas, acertaste ${o.correctWords} bolas de papel y recibiste ${o.errors}.`
           : `\n${GAME_MODES[input.mode].name}: ${o.correctWords} ${GAME_MODES[input.mode].unit} correctos, ${o.errors} errores.`,
         `Experiencia ganada: +${xpGained} XP. Doblones: +${coins + bonus}. Rating: ${me.rating} → ${Math.max(0, me.rating + delta)}.`,
         newLevel > me.level ? `\n¡Subiste al nivel ${newLevel}!` : '',

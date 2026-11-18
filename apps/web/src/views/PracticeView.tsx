@@ -6,6 +6,22 @@ import { startQuickMatch } from '../components/QuickMatch';
 import { PowerPicker, saveLoadout, savedLoadout } from '../battle/PowerPicker';
 
 const PracticeStage = lazy(() => import('../battle/PracticeStage'));
+const ChairsPracticeStage = lazy(() => import('../battle/ChairsPracticeStage'));
+
+const GAMES = [
+  { id: 'office', label: 'Pelea' },
+  { id: 'chairs', label: 'Carrera de sillas' },
+] as const;
+type Game = (typeof GAMES)[number]['id'];
+const GAME_KEY = 'inbox-arena:practice-game';
+
+function savedGame(): Game {
+  try {
+    return localStorage.getItem(GAME_KEY) === 'chairs' ? 'chairs' : 'office';
+  } catch {
+    return 'office';
+  }
+}
 
 const LEVELS = [
   { id: 0.3, label: 'Tranquilo' },
@@ -13,9 +29,10 @@ const LEVELS = [
   { id: 0.85, label: 'Difícil' },
 ] as const;
 
-/** Office Battle against one to three sparring bots, to learn the moves and the powers. */
+/** Office Battle or the chair race against one to three bots, to learn the moves, powers and the track. */
 export function PracticeView() {
   const { me, go, queue } = useApp();
+  const [game, setGame] = useState<Game>(savedGame);
   const [skill, setSkill] = useState<number>(0.5);
   const [bots, setBots] = useState(1);
   const [powers, setPowers] = useState<PowerId[]>(savedLoadout);
@@ -34,12 +51,31 @@ export function PracticeView() {
           <ArrowLeft size={16} /> Bandeja
         </button>
         <div className="battle-title">
-          <span className="battle-kicker">Office Battle · Práctica</span>
+          <span className="battle-kicker">{game === 'chairs' ? 'Carrera de Sillas' : 'Office Battle'} · Práctica</span>
           <strong>
             {me.username} <span className="vs">VS</span> {bots === 1 ? 'Gerente Dragón' : `${bots} bots`}
           </strong>
         </div>
         <div className="practice-levels">
+          <div role="group" aria-label="Juego" className="chip-row practice-game">
+            {GAMES.map((g) => (
+              <button
+                key={g.id}
+                className={`chip ${game === g.id ? 'active' : ''}`}
+                onClick={() => {
+                  setGame(g.id);
+                  try {
+                    localStorage.setItem(GAME_KEY, g.id);
+                  } catch {
+                    /* private mode */
+                  }
+                  restart();
+                }}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
           <div role="group" aria-label="Cantidad de rivales" className="chip-row">
             {[1, 2, 3].map((n) => (
               <button
@@ -71,29 +107,35 @@ export function PracticeView() {
         </div>
       </header>
       <Suspense fallback={<div className="office-stage office-loading">Cargando la oficina…</div>}>
-        <PracticeStage key={round} me={me} skill={skill} bots={bots} powers={powers.length === 2 ? powers : savedLoadout()} onEnd={setResult} />
+        {game === 'chairs' ? (
+          <ChairsPracticeStage key={`c${round}`} me={me} skill={skill} bots={bots} onEnd={setResult} />
+        ) : (
+          <PracticeStage key={round} me={me} skill={skill} bots={bots} powers={powers.length === 2 ? powers : savedLoadout()} onEnd={setResult} />
+        )}
       </Suspense>
       <div className="practice-actions">
         {result && (
           <button className="btn btn-primary" onClick={restart}>
-            Revancha
+            {game === 'chairs' ? 'Otra carrera' : 'Revancha'}
           </button>
         )}
-        <button className="btn btn-ghost" disabled={queue.searching} onClick={() => startQuickMatch('office')}>
+        <button className="btn btn-ghost" disabled={queue.searching} onClick={() => startQuickMatch(game)}>
           <Zap size={16} /> Buscar rivales de verdad
         </button>
         <span className="muted small">La práctica no da experiencia ni cambia tu rating.</span>
       </div>
-      <PowerPicker
-        value={powers}
-        onChange={(next) => {
-          setPowers(next);
-          if (next.length === 2) {
-            saveLoadout(next);
-            restart();
-          }
-        }}
-      />
+      {game === 'office' && (
+        <PowerPicker
+          value={powers}
+          onChange={(next) => {
+            setPowers(next);
+            if (next.length === 2) {
+              saveLoadout(next);
+              restart();
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
