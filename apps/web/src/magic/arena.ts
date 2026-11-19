@@ -106,12 +106,11 @@ export class MagicArena {
   private resize: ResizeObserver;
   private clock = 0;
   private lastFrame = performance.now();
-  /** Ids the HUD/camera care about. */
-  private myTeam = 0;
-
   constructor(
     private container: HTMLElement,
     private mapId: MfMapId = 'skirmish',
+    /** The side this screen plays. Your side is always drawn blue and the enemy red. */
+    private myTeam = 0,
   ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -135,7 +134,7 @@ export class MagicArena {
     this.sun.shadow.bias = -0.0006;
     this.scene.add(this.sun, this.sun.target);
 
-    this.scenery = buildScenery(mapId);
+    this.scenery = buildScenery(mapId, myTeam);
     this.scene.add(this.scenery.group);
 
     // Aim reticle on the ground, with a rune circle that lights up when a volley is ready.
@@ -160,6 +159,11 @@ export class MagicArena {
     this.fit();
   }
 
+  /** Colors by point of view: 0 (blue) for your side, 1 (red) for the enemy. */
+  private look(team: number) {
+    return team < 0 ? team : team === this.myTeam ? 0 : 1;
+  }
+
   private fit() {
     const w = Math.max(1, this.container.clientWidth);
     const h = Math.max(1, this.container.clientHeight);
@@ -181,7 +185,7 @@ export class MagicArena {
   private visFor(u: MfUnit): UnitVis {
     let v = this.units.get(u.id);
     if (v) return v;
-    const rig = buildUnit(u.kind, u.team);
+    const rig = buildUnit(u.kind, this.look(u.team));
     const ring = new THREE.Mesh(RING_GEO, this.ringMat(u.team, 'follow', true));
     ring.position.y = 0.04;
     if (u.kind === 'commander') ring.scale.setScalar(1.6 / 1.28);
@@ -229,7 +233,7 @@ export class MagicArena {
           if (near(e.id, 26)) throttled('cast', e.volley ? 40 : 120, () => sfx.shot());
           break;
         case 'boom': {
-          const color = TEAM_LOOKS[e.team]!.magic;
+          const color = TEAM_LOOKS[this.look(e.team)]!.magic;
           this.sparks(e.x, Math.max(0.3, e.y), e.z, color, e.volley ? 16 : 9, e.volley ? 7 : 5);
           this.wave(e.x, e.z, color, Math.max(1.2, e.r), 0.45);
           const flash = new THREE.Sprite(glowMat(color));
@@ -262,7 +266,7 @@ export class MagicArena {
         }
         case 'volley':
           if (e.team === this.myTeam) {
-            this.wave(e.x, e.z, TEAM_LOOKS[e.team]!.magic, ARMY.volleySplash + 1, 0.7);
+            this.wave(e.x, e.z, TEAM_LOOKS[this.look(e.team)]!.magic, ARMY.volleySplash + 1, 0.7);
             this.hud.toast('¡Descarga mágica!');
           } else this.hud.toast('¡Los magos enemigos lanzan una descarga!');
           break;
@@ -293,7 +297,7 @@ export class MagicArena {
             this.hud.toast(`El enemigo tomó la ${f.name}`);
           } else if (e.from === this.myTeam) this.hud.toast(`¡Perdiste la ${f.name}! Recupérala`);
           else this.hud.toast(`La ${f.name} vuelve a ser neutral`);
-          this.wave(f.x, f.z, e.owner < 0 ? '#ffffff' : TEAM_LOOKS[e.owner]!.main, f.half + 3, 1.2);
+          this.wave(f.x, f.z, e.owner < 0 ? '#ffffff' : TEAM_LOOKS[this.look(e.owner)]!.main, f.half + 3, 1.2);
           break;
         }
         case 'recruit':
@@ -427,7 +431,7 @@ export class MagicArena {
     this.sun.position.set(cp.x + 30, 55, cp.z - 20);
     this.sun.target.position.set(cp.x, 0, cp.z + 6);
     this.scenery.animate(this.clock);
-    if (world.forts.length) this.scenery.updateForts(world.forts, this.myTeam);
+    if (world.forts.length) this.scenery.updateForts(world.forts);
     this.hud.update(world, this.myTeam);
     this.renderer.render(this.scene, this.camera);
   }
@@ -626,7 +630,7 @@ export class MagicArena {
     for (const b of world.projectiles) {
       seen.add(b.id);
       let g = this.bolts.get(b.id);
-      const color = world.units[b.owner - 1]?.kind === 'beast' ? '#ff7a2a' : TEAM_LOOKS[b.team]!.magic;
+      const color = world.units[b.owner - 1]?.kind === 'beast' ? '#ff7a2a' : TEAM_LOOKS[this.look(b.team)]!.magic;
       if (!g) {
         g = new THREE.Group();
         const core = new THREE.Mesh(new THREE.IcosahedronGeometry(b.volley ? 0.26 : 0.18, 1), new THREE.MeshBasicMaterial({ color }));

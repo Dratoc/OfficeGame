@@ -6,6 +6,7 @@ import type { OfficeFrame, OfficeInputBatch, PowerId } from './office';
 import type { ChairsFrame, ChairsInputBatch } from './chairs';
 import type { SalesFrame, SalesInputBatch } from './sales';
 import type { ZombieFrame, ZombieInputBatch } from './zombies';
+import type { MagicFrame, MagicInputBatch } from './magic/net';
 import type { MailDto, MatchSummaryDto, PublicUser } from './api';
 
 /** Socket.IO protocol. Every client → server payload is validated with these schemas. */
@@ -104,6 +105,7 @@ export interface ServerToClientEvents {
   'sales:frame': (data: { matchId: string; frame: SalesFrame }) => void;
   /** Zona Zombi: the authoritative state of the map, every simulation tick. */
   'zombies:frame': (data: { matchId: string; frame: ZombieFrame }) => void;
+  'magic:frame': (data: { matchId: string; frame: MagicFrame }) => void;
   /** Your private room changed; null when you are no longer in one. */
   'lobby:state': (state: LobbyState | null) => void;
   'lobby:started': (data: { matchId: string; mode?: LobbyModeId }) => void;
@@ -131,6 +133,7 @@ export interface ClientToServerEvents {
   'sales:input': (data: SalesInputBatch) => void;
   /** Zona Zombi: a few steps of input (move, fight, use, shop). */
   'zombies:input': (data: ZombieInputBatch) => void;
+  'magic:input': (data: MagicInputBatch) => void;
   /** Zona Zombi: the public matches being played right now. */
   'zombies:list': (ack: (res: LiveMatch[]) => void) => void;
   /** Zona Zombi: start a public match right away, alone. Others can join it while it lasts. */

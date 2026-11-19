@@ -151,7 +151,7 @@ export interface Scenery {
   group: THREE.Group;
   animate(t: number): void;
   /** Conquest: flags, owner colors and capture progress of the fortresses. */
-  updateForts(forts: MfFort[], myTeam: number): void;
+  updateForts(forts: MfFort[]): void;
 }
 
 const NEUTRAL = '#e9e4d6';
@@ -240,7 +240,8 @@ function fortress(f: { x: number; z: number; half: number }, index: number): { g
   return { group: g, vis: { flag, floor, signs, owner: -2 } };
 }
 
-export function buildScenery(mapId: MfMapId = 'skirmish'): Scenery {
+export function buildScenery(mapId: MfMapId = 'skirmish', myTeam = 0): Scenery {
+  const look = (team: number) => (team === myTeam ? 0 : 1);
   const map = magicMap(mapId);
   const group = new THREE.Group();
   const span = map.half * 2 + 40;
@@ -316,7 +317,7 @@ export function buildScenery(mapId: MfMapId = 'skirmish'): Scenery {
   const cloths: THREE.Mesh[] = [];
   const camps = [map.playerSpawn, map.enemyCamp];
   camps.forEach((camp, team) => {
-    const color = TEAM_LOOKS[team]!.main;
+    const color = TEAM_LOOKS[look(team)]!.main;
     const back = team === 0 ? -1 : 1;
     for (const o of map.obstacles.filter((x) => x.kind === 'tent' && x.team === team)) {
       const t = tent(color);
@@ -344,18 +345,18 @@ export function buildScenery(mapId: MfMapId = 'skirmish'): Scenery {
 
   return {
     group,
-    updateForts(list, myTeam) {
+    updateForts(list) {
       list.forEach((f, i) => {
         const v = forts[i];
         if (!v) return;
         // The flag climbs as the fortress is taken, in the color of whoever is taking it.
         const towards = f.capture > 0 ? 0 : 1;
-        const color = Math.abs(f.capture) < 0.02 ? NEUTRAL : TEAM_LOOKS[towards]!.main;
+        const color = Math.abs(f.capture) < 0.02 ? NEUTRAL : TEAM_LOOKS[look(towards)]!.main;
         (v.flag.material as THREE.MeshToonMaterial).color.set(color);
         v.flag.position.y = 1.2 + Math.abs(f.capture) * 5.1;
         if (v.owner !== f.owner) {
           v.owner = f.owner;
-          (v.floor.material as THREE.MeshLambertMaterial).color.set(f.owner < 0 ? NEUTRAL : TEAM_LOOKS[f.owner]!.main);
+          (v.floor.material as THREE.MeshLambertMaterial).color.set(f.owner < 0 ? NEUTRAL : TEAM_LOOKS[look(f.owner)]!.main);
           v.signs.forEach((s, k) => (s.visible = k === (f.owner < 0 ? 0 : f.owner === myTeam ? 1 : 2)));
         }
       });
