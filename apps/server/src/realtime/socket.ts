@@ -1,6 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
-import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema, officeInputBatchSchema, chairsInputBatchSchema, salesInputBatchSchema, zombieInputBatchSchema, liveJoinSchema, lobbyModeSchema, loadoutPickSchema, lobbyCodeSchema, lobbyInviteSchema } from '@inbox/shared';
+import { queueJoinSchema, roomJoinSchema, timePingSchema, answerSchema, officeInputBatchSchema, chairsInputBatchSchema, salesInputBatchSchema, zombieInputBatchSchema, magicInputBatchSchema, liveJoinSchema, lobbyModeSchema, loadoutPickSchema, lobbyCodeSchema, lobbyInviteSchema } from '@inbox/shared';
 import { SESSION_COOKIE, readCookie, userIdFromToken } from '../lib/auth';
 import { setIO, toUser, userRoom, type IO } from './notify';
 import { engine } from './matchEngine';
@@ -111,6 +111,13 @@ export function attachSocket(server: HttpServer): IO {
       const parsed = zombieInputBatchSchema.safeParse(data);
       if (!parsed.success || !joined.has(parsed.data.matchId)) return;
       engine.input(userId, parsed.data, 'zombies');
+    });
+
+    socket.on('magic:input', (data) => {
+      if (!allowInput()) return;
+      const parsed = magicInputBatchSchema.safeParse(data);
+      if (!parsed.success || !joined.has(parsed.data.matchId)) return;
+      engine.input(userId, parsed.data, 'magic');
     });
 
     // Zona Zombi matches are public: anyone can see them and jump in while they last.

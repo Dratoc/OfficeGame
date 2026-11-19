@@ -220,9 +220,9 @@ export function PracticeView() {
           </button>
         )}
         {(coop(game) || game === 'magic') && result && <strong className="small">{result}</strong>}
-        {game === 'magic' ? null : coop(game) ? (
+        {coop(game) || game === 'magic' ? (
           <button className="btn btn-ghost" onClick={() => go({ kind: 'rooms' })}>
-            <Users size={16} /> {game === 'zombies' ? 'Jugar en línea en una partida pública' : 'Jugar con tu equipo en una sala'}
+            <Users size={16} /> {game === 'magic' ? 'Jugar en línea 1 contra 1 en una sala' : game === 'zombies' ? 'Jugar en línea en una partida pública' : 'Jugar con tu equipo en una sala'}
           </button>
         ) : (
           <button className="btn btn-ghost" disabled={queue.searching} onClick={() => startQuickMatch(game)}>

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
   Armchair,
+  Castle,
   Copy,
   Crown,
   DoorOpen,
@@ -36,6 +37,12 @@ const MODE_TEXT: Record<LobbyModeId, { short: string; blurb: string; start: stri
     start: "Empezar a sobrevivir",
     wait: "El anfitrión empieza la partida",
   },
+  magic: {
+    short: "Magic Frontiers",
+    blurb: "1 contra 1: cada uno manda un ejército y gana quien conquiste las fortalezas.",
+    start: "Empezar la conquista",
+    wait: "El anfitrión empieza la conquista",
+  },
   chairs: {
     short: "Carrera de sillas",
     blurb: "3 vueltas en silla de oficina: dispara hacia adelante y acelera con cada acierto.",
@@ -45,7 +52,7 @@ const MODE_TEXT: Record<LobbyModeId, { short: string; blurb: string; start: stri
 };
 
 function ModeIcon({ mode, size = 16 }: { mode: LobbyModeId; size?: number }) {
-  return mode === "chairs" ? <Armchair size={size} /> : mode === "sales" ? <Forklift size={size} /> : mode === "zombies" ? <Skull size={size} /> : <Swords size={size} />;
+  return mode === "chairs" ? <Armchair size={size} /> : mode === "sales" ? <Forklift size={size} /> : mode === "zombies" ? <Skull size={size} /> : mode === "magic" ? <Castle size={size} /> : <Swords size={size} />;
 }
 
 /** Choice between the modes a private room can play. */
@@ -206,7 +213,8 @@ export function RoomsView() {
           <p className="muted">
             Arma una partida privada de hasta 4 jugadores: una pelea en la
             oficina, una carrera de sillas, un turno cooperativo vendiendo
-            maquinaria o una partida de Zona Zombi.
+            maquinaria, una partida de Zona Zombi o una conquista 1 contra 1
+            de Magic Frontiers.
           </p>
         </header>
         <PublicZombies />
@@ -338,7 +346,7 @@ export function RoomsView() {
         {isHost ? (
           <button
             className="btn btn-primary"
-            disabled={busy || lobby.members.length < GAME_MODES[lobby.mode].minPlayers}
+            disabled={busy || lobby.members.length < GAME_MODES[lobby.mode].minPlayers || lobby.members.length > GAME_MODES[lobby.mode].maxPlayers}
             onClick={() =>
               void run(() => getSocket().emitWithAck("lobby:start"))
             }
@@ -346,6 +354,8 @@ export function RoomsView() {
             <ModeIcon mode={lobby.mode} />{" "}
             {lobby.members.length < GAME_MODES[lobby.mode].minPlayers
               ? "Esperando jugadores…"
+              : lobby.members.length > GAME_MODES[lobby.mode].maxPlayers
+              ? `Es para ${GAME_MODES[lobby.mode].maxPlayers} jugadores`
               : MODE_TEXT[lobby.mode].start}
           </button>
         ) : (

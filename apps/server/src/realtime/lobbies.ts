@@ -98,6 +98,7 @@ export class Lobbies {
     if (!lobby) return 'No estás en una sala';
     if (lobby.hostId !== userId) return 'Solo quien creó la sala puede empezar';
     if (lobby.members.length < GAME_MODES[lobby.mode].minPlayers) return `Hacen falta al menos ${GAME_MODES[lobby.mode].minPlayers} jugadores`;
+    if (lobby.members.length > GAME_MODES[lobby.mode].maxPlayers) return `${GAME_MODES[lobby.mode].name} es para ${GAME_MODES[lobby.mode].maxPlayers} jugadores como máximo`;
     const members = [...lobby.members];
     this.byCode.delete(lobby.code);
     for (const id of members) this.byUser.delete(id);

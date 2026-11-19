@@ -4,6 +4,7 @@ import { officeMode } from './office';
 import { chairsMode } from './chairs';
 import { salesMode } from './sales';
 import { zombiesMode } from './zombies';
+import { magicMode } from './magic';
 import { keysMode, mathMode, puzzleMode, racingMode, taskMode, typingMode } from './sequence';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,4 +19,5 @@ export const MODE_REGISTRY: Partial<Record<GameModeId, GameMode<any, any, any, a
   chairs: chairsMode,
   sales: salesMode,
   zombies: zombiesMode,
+  magic: magicMode,
 };

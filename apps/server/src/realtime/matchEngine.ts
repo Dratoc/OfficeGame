@@ -11,6 +11,7 @@ import {
   type ChairsInputBatch,
   type SalesInputBatch,
   type ZombieInputBatch,
+  type MagicInputBatch,
   type LiveMatch,
   DROP_IN_MODES,
   GAME_MODES,
@@ -275,6 +276,7 @@ export class MatchEngine {
       if (room.modeId === 'chairs') io?.emit('chairs:frame', { matchId: room.matchId, frame });
       else if (room.modeId === 'sales') io?.emit('sales:frame', { matchId: room.matchId, frame });
       else if (room.modeId === 'zombies') io?.emit('zombies:frame', { matchId: room.matchId, frame });
+      else if (room.modeId === 'magic') io?.emit('magic:frame', { matchId: room.matchId, frame });
       else io?.emit('match:frame', { matchId: room.matchId, frame });
     }
     const remaining = [...room.players.keys()].filter((id) => !room.abandoned.has(id));
@@ -287,7 +289,7 @@ export class MatchEngine {
   }
 
   /** Inputs of a real-time mode (Office Battle, Chair Race, A Toda Máquina). The mode must match the input kind. */
-  input(userId: string, data: OfficeInputBatch | ChairsInputBatch | SalesInputBatch | ZombieInputBatch, kind: 'office' | 'chairs' | 'sales' | 'zombies' = 'office'): boolean {
+  input(userId: string, data: OfficeInputBatch | ChairsInputBatch | SalesInputBatch | ZombieInputBatch | MagicInputBatch, kind: 'office' | 'chairs' | 'sales' | 'zombies' | 'magic' = 'office'): boolean {
     const room = this.rooms.get(data.matchId);
     if (!room || !room.state || !room.mode.tick || !room.players.has(userId) || room.modeId !== kind) return false;
     if (room.phase !== 'playing' && room.phase !== 'countdown') return false;

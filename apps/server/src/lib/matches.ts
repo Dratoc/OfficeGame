@@ -280,6 +280,8 @@ export async function finalizeMatch(input: FinalizeInput): Promise<MatchSummaryD
           ? `\n${GAME_MODES[input.mode].name}: diste ${o.correctWords} golpes, recibiste ${o.errors} y causaste ${o.correctChars} de daño.`
           : input.mode === 'chairs'
           ? `\n${GAME_MODES[input.mode].name}: completaste ${o.correctChars} de ${CHAIRS_LAPS} vueltas, acertaste ${o.correctWords} bolas de papel y recibiste ${o.errors}.`
+          : input.mode === 'magic'
+          ? `\n${GAME_MODES[input.mode].name}: tu ejército derrotó a ${o.correctWords} soldados enemigos, perdió ${o.errors}, sumó ${o.correctChars} puntos de victoria y terminó con ${o.wpm} ${o.wpm === 1 ? 'fortaleza' : 'fortalezas'}.`
           : `\n${GAME_MODES[input.mode].name}: ${o.correctWords} ${GAME_MODES[input.mode].unit} correctos, ${o.errors} errores.`,
         `Experiencia ganada: +${xpGained} XP. Doblones: +${coins + bonus}. Rating: ${me.rating} → ${Math.max(0, me.rating + delta)}.`,
         newLevel > me.level ? `\n¡Subiste al nivel ${newLevel}!` : '',

@@ -15,6 +15,7 @@ const OfficeStage = lazy(() => import('../battle/OfficeStage'));
 const ChairsStage = lazy(() => import('../battle/ChairsStage'));
 const SalesStage = lazy(() => import('../battle/SalesStage'));
 const ZombiesStage = lazy(() => import('../battle/ZombiesStage'));
+const MagicStage = lazy(() => import('../battle/MagicStage'));
 
 const HOW_TO: Record<string, string> = {
   typing: 'Escribe cada palabra y pulsa espacio. Pegar texto no está permitido.',
@@ -28,6 +29,8 @@ const HOW_TO: Record<string, string> = {
     'Cooperativo: WASD o flechas para caminar, E o Espacio para tomar, dejar y usar (mantén en los escritorios). Cada uno tiene su zona del local: pasen los papeles y las máquinas por los mesones de traspaso. Cumplan la meta de cada jornada antes de que se acabe el tiempo y no dejen que 3 clientes se vayan enojados.',
   zombies:
     'Cooperativo: WASD para moverte, J o clic para atacar (mantén con pistola, rayos y motosierra), K para bloquear, Espacio para esquivar, Q para cambiar de arma y E para subir a un vehículo, bloquear una puerta o levantar a un compañero. En las tiendas de cada fortaleza compras con los números. El fuego amigo está activado. Si caes, te levantas a los 8 segundos; pierden cuando caen todos a la vez.',
+  magic:
+    'Conquista 1 contra 1. WASD mueve a tu comandante; con el mouse apuntas. Clic derecho: ataque, Q: defensa, F: seguimiento, E: descarga mágica, R: formación, 1 / 2 / 3: elegir guerreros, magos o dragones. Z / X / C entrenan soldados con oro y G / H dejan o recogen la guarnición de una fortaleza. Gana quien llegue primero a 300 puntos.',
   puzzle: `Completa series, encuentra al intruso, ordena letras y sigue patrones. Gana quien resuelva ${PUZZLE_GOAL} primero (opciones con el mouse o con 1, 2, 3 y 4).`,
 };
 
@@ -209,7 +212,7 @@ export function BattleView({ matchId }: { matchId: string }) {
           <div className="lobby-mode">
             <strong>{info.name}</strong>
             <span>
-              {info.tagline} · {mode === 'sales' ? 'jornadas sin fin, hasta que los clientes se enojen' : mode === 'zombies' ? 'oleadas sin fin, hasta que caigan todos' : `${Math.round(info.durationMs / 1000)} segundos`}
+              {info.tagline} · {mode === 'sales' ? 'jornadas sin fin, hasta que los clientes se enojen' : mode === 'zombies' ? 'oleadas sin fin, hasta que caigan todos' : mode === 'magic' ? 'hasta 15 minutos' : `${Math.round(info.durationMs / 1000)} segundos`}
             </span>
           </div>
           <div className={`lobby-stage ${everyone.length > 2 || mode === 'sales' || mode === 'zombies' ? 'crowd' : ''}`}>
@@ -270,7 +273,13 @@ export function BattleView({ matchId }: { matchId: string }) {
         </Suspense>
       )}
 
-      {mode !== 'office' && mode !== 'chairs' && mode !== 'sales' && mode !== 'zombies' && (phase === 'countdown' || phase === 'playing' || phase === 'finished') && meP && opp && (
+      {mode === 'magic' && (phase === 'countdown' || phase === 'playing' || phase === 'finished') && meP && room?.startAt && room.endAt && (
+        <Suspense fallback={<div className="office-stage office-loading">Preparando el valle…</div>}>
+          <MagicStage matchId={matchId} meId={meP.user.id} startAt={room.startAt} endAt={room.endAt} />
+        </Suspense>
+      )}
+
+      {mode !== 'office' && mode !== 'chairs' && mode !== 'sales' && mode !== 'zombies' && mode !== 'magic' && (phase === 'countdown' || phase === 'playing' || phase === 'finished') && meP && opp && (
         <div className="arena">
           <div className="timer">
             <div className="timer-fill" style={{ width: `${(remaining / total) * 100}%` }} />
