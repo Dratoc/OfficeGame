@@ -16,3 +16,4 @@ export * from './sales';
 export * from './salesBot';
 export * from './zombies';
 export * from './zombiesBot';
+export * from './magic';
