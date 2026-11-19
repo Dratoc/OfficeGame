@@ -5,16 +5,17 @@ import { MagicPractice } from '../magic/practice';
 interface Props {
   skill: number;
   size: keyof typeof ARMY_SIZES;
+  mode: 'skirmish' | 'conquest';
   onEnd: (world: MfWorld) => void;
 }
 
 /** Magic Frontiers: your commander and army against an AI army, without the server. */
-export default function MagicPracticeStage({ skill, size, onEnd }: Props) {
+export default function MagicPracticeStage({ skill, size, mode, onEnd }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const end = useRef(onEnd);
   end.current = onEnd;
   useEffect(() => {
-    const g = new MagicPractice(ref.current!, { skill, size, onEnd: (w) => end.current(w) });
+    const g = new MagicPractice(ref.current!, { skill, size, mode, onEnd: (w) => end.current(w) });
     return () => g.dispose();
     // A new battle is started by remounting with a new key.
     // eslint-disable-next-line react-hooks/exhaustive-deps

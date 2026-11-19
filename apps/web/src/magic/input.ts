@@ -1,4 +1,4 @@
-import { FORMATIONS, type MfFormation, type MfInput, type MfOrder, type MfSelection, type MfUnit } from '@inbox/shared';
+import { FORMATIONS, type MfSoldierKind, type MfFormation, type MfInput, type MfOrder, type MfSelection, type MfUnit } from '@inbox/shared';
 import { sfx } from '../office/sfx';
 
 /** A press stays valid for this many steps, so a quick tap is never lost between steps. */
@@ -13,6 +13,7 @@ const BUFFER = 3;
  * - Left click: the commander's sword. Right click: Attack order on the enemy under the reticle.
  * - Q: Defend here. F: Follow me. E: magic volley at the reticle (mages and dragons).
  * - R: next marching formation (line, wedge, column).
+ * - Conquest: Z / X / C train a warrior, mage or dragon; G leaves soldiers in the fortress, H takes them back.
  * - 1, 2, 3 choose warriors, mages or beasts for the next orders; the same key again (or 4) goes
  *   back to the whole army.
  */
@@ -23,6 +24,8 @@ export class MagicControls {
   selection: MfSelection = 'all';
   formation: MfFormation = 'line';
   private formationPick: MfFormation | null = null;
+  private buy: MfSoldierKind | null = null;
+  private garrison: 'leave' | 'recall' | null = null;
   /** Messages for the HUD (e.g. beasts are not in this version). */
   onNotice: ((text: string) => void) | null = null;
   onLock: ((locked: boolean) => void) | null = null;
@@ -37,7 +40,7 @@ export class MagicControls {
 
   constructor(private root: HTMLElement, startYaw: number) {
     this.yaw = startYaw;
-    const game = ['w', 'a', 's', 'd', 'q', 'e', 'f', 'r', '1', '2', '3', '4', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'];
+    const game = ['w', 'a', 's', 'd', 'q', 'e', 'f', 'r', 'z', 'x', 'c', 'g', 'h', '1', '2', '3', '4', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'];
     const down = (e: KeyboardEvent) => {
       if (!this.enabled || (e.target as HTMLElement)?.closest?.('input, textarea')) return;
       const k = e.key.toLowerCase();
@@ -47,6 +50,11 @@ export class MagicControls {
         if (k === 'q') this.order = { o: 'defend', n: BUFFER };
         if (k === 'f') this.order = { o: 'follow', n: BUFFER };
         if (k === 'e') this.volley = BUFFER;
+        if (k === 'z') this.buy = 'warrior';
+        if (k === 'x') this.buy = 'mage';
+        if (k === 'c') this.buy = 'beast';
+        if (k === 'g') this.garrison = 'leave';
+        if (k === 'h') this.garrison = 'recall';
         if (k === 'r') {
           this.formation = FORMATIONS[(FORMATIONS.indexOf(this.formation) + 1) % FORMATIONS.length]!;
           this.formationPick = this.formation;
@@ -162,8 +170,12 @@ export class MagicControls {
       select: this.select,
       volley: this.volley > 0,
       formation: this.formationPick,
+      buy: this.buy,
+      garrison: this.garrison,
     };
     this.formationPick = null;
+    this.buy = null;
+    this.garrison = null;
     // One-shot presses are consumed as soon as they are sent.
     if (input.order) this.order = null;
     if (input.volley) this.volley = 0;

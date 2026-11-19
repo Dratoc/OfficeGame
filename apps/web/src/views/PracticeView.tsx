@@ -54,6 +54,11 @@ function zombiesSummary(w: ZombieWorld): string {
 }
 
 function magicSummary(w: MfWorld): string {
+  if (w.mode === 'conquest') {
+    const [me, foe] = w.econ.map((e) => Math.floor(e.vp));
+    const held = w.forts.filter((f) => f.owner === 0).length;
+    return `${w.winner === 0 ? '¡Victoria!' : w.winner === -1 ? 'Empate' : 'Derrota'} · ${me} contra ${foe} puntos · ${held === 1 ? '1 fortaleza' : `${held} fortalezas`} al final · ${Math.floor(w.time / 60)}:${String(Math.floor(w.time % 60)).padStart(2, '0')}`;
+  }
   const c = armyCount(w, 0);
   const e = armyCount(w, 1);
   const lost = c.warriorMax + c.mageMax + c.beastMax - c.warrior - c.mage - c.beast;
@@ -73,6 +78,7 @@ export function PracticeView() {
   const [skill, setSkill] = useState<number>(0.5);
   const [bots, setBots] = useState(1);
   const [armySize, setArmySize] = useState<MagicSize>('small');
+  const [magicMode, setMagicMode] = useState<'skirmish' | 'conquest'>('conquest');
   const [powers, setPowers] = useState<PowerId[]>(savedLoadout);
   const [round, setRound] = useState(0);
   const [result, setResult] = useState<string | null>(null);
@@ -126,6 +132,27 @@ export function PracticeView() {
             ))}
           </div>
           {game === 'magic' && (
+            <div role="group" aria-label="Modo" className="chip-row">
+              {(
+                [
+                  ['conquest', 'Conquista'],
+                  ['skirmish', 'Batalla'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  className={`chip ${magicMode === id ? 'active' : ''}`}
+                  onClick={() => {
+                    setMagicMode(id);
+                    restart();
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {game === 'magic' && magicMode === 'skirmish' && (
             <div role="group" aria-label="Tamaño de los ejércitos" className="chip-row">
               {SIZES.map((sz) => (
                 <button
@@ -175,7 +202,7 @@ export function PracticeView() {
       </header>
       <Suspense fallback={<div className="office-stage office-loading">{game === 'magic' ? 'Preparando el campo de batalla…' : 'Cargando la oficina…'}</div>}>
         {game === 'magic' ? (
-          <MagicPracticeStage key={`m${round}`} skill={skill} size={armySize} onEnd={(w) => setResult(magicSummary(w))} />
+          <MagicPracticeStage key={`m${round}`} skill={skill} size={armySize} mode={magicMode} onEnd={(w) => setResult(magicSummary(w))} />
         ) : game === 'zombies' ? (
           <ZombiesPracticeStage key={`z${round}`} me={me} skill={skill} bots={bots} onEnd={(w) => setResult(zombiesSummary(w))} />
         ) : game === 'sales' ? (

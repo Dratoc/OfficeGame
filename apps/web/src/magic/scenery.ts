@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { magicMap, roadX, type MfMap } from '@inbox/shared';
+import { GATE_HALF_WIDTH, magicMap, roadX, type MfFort, type MfMap, type MfMapId } from '@inbox/shared';
+import { textSprite } from '../sales/scene3d';
 import { toon } from '../office/avatar3d';
 import { TEAM_LOOKS } from './models';
 
@@ -149,10 +150,98 @@ function tower(): THREE.Group {
 export interface Scenery {
   group: THREE.Group;
   animate(t: number): void;
+  /** Conquest: flags, owner colors and capture progress of the fortresses. */
+  updateForts(forts: MfFort[], myTeam: number): void;
 }
 
-export function buildScenery(): Scenery {
-  const map = magicMap();
+const NEUTRAL = '#e9e4d6';
+const LETTERS = ['A', 'B', 'C'];
+
+interface FortVis {
+  flag: THREE.Mesh;
+  floor: THREE.Mesh;
+  signs: THREE.Sprite[];
+  owner: number;
+}
+
+/** Stone walls with battlements, towers on the corners and by each gate, a courtyard and a flag. */
+function fortress(f: { x: number; z: number; half: number }, index: number): { group: THREE.Group; vis: FortVis } {
+  const g = new THREE.Group();
+  g.position.set(f.x, 0, f.z);
+  const stone = toon('#b3ab9c');
+  const dark = toon('#8f8879');
+  const h = f.half;
+  const len = h - GATE_HALF_WIDTH - 0.2;
+  const mid = GATE_HALF_WIDTH + 0.2 + len / 2;
+  const wallGeo = new THREE.BoxGeometry(len, 3.2, 1.5);
+  const merlon = new THREE.BoxGeometry(0.7, 0.6, 1.5);
+  for (const side of [0, 1, 2, 3]) {
+    const rot = (side * Math.PI) / 2;
+    for (const sign of [-1, 1]) {
+      const seg = new THREE.Group();
+      seg.rotation.y = rot;
+      const w = new THREE.Mesh(wallGeo, stone);
+      w.position.set(sign * mid, 1.6, h);
+      w.castShadow = w.receiveShadow = true;
+      seg.add(w);
+      for (let t = GATE_HALF_WIDTH + 0.6; t < h - 0.5; t += 1.4) {
+        const m = new THREE.Mesh(merlon, dark);
+        m.position.set(sign * t, 3.5, h);
+        m.castShadow = true;
+        seg.add(m);
+      }
+      // Gate towers on both sides of each gate.
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1, 4.4, 10), dark);
+      post.position.set(sign * (GATE_HALF_WIDTH + 0.5), 2.2, h);
+      post.castShadow = true;
+      seg.add(post);
+      g.add(seg);
+    }
+  }
+  for (const [x, z] of [
+    [h, h],
+    [-h, h],
+    [h, -h],
+    [-h, -h],
+  ] as const) {
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.8, 5.2, 12), stone);
+    t.position.set(x, 2.6, z);
+    t.castShadow = true;
+    g.add(t);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(1.9, 1.8, 12), toon('#7b4b3a'));
+    roof.position.set(x, 6.1, z);
+    g.add(roof);
+  }
+  // Courtyard: its color shows the owner.
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(h * 2 - 1.2, h * 2 - 1.2), new THREE.MeshLambertMaterial({ color: NEUTRAL, transparent: true, opacity: 0.55 }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = 0.03;
+  floor.receiveShadow = true;
+  g.add(floor);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 7, 8), toon('#6b4a32'));
+  pole.position.y = 3.5;
+  pole.castShadow = true;
+  g.add(pole);
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.1), new THREE.MeshToonMaterial({ color: NEUTRAL, side: THREE.DoubleSide }));
+  flag.position.set(0.95, 6.3, 0);
+  flag.castShadow = true;
+  g.add(flag);
+  // A big letter over each fortress, readable from anywhere: neutral, yours, the enemy's.
+  const signs = [NEUTRAL, '#2f6fe0', '#c8382f'].map((bg, i) => {
+    const sp = textSprite(LETTERS[index] ?? '?', { bg, color: i === 0 ? '#1b1f2a' : '#ffffff', size: 64, width: 160 });
+    sp.position.set(0, 9.5, 0);
+    sp.scale.set(2.6, 1.8, 1);
+    sp.visible = i === 0;
+    (sp.material as THREE.SpriteMaterial).depthTest = false;
+    sp.renderOrder = 20;
+    g.add(sp);
+    return sp;
+  });
+  return { group: g, vis: { flag, floor, signs, owner: -2 } };
+}
+
+export function buildScenery(mapId: MfMapId = 'skirmish'): Scenery {
+  const map = magicMap(mapId);
   const group = new THREE.Group();
   const span = map.half * 2 + 40;
 
@@ -247,9 +336,32 @@ export function buildScenery(): Scenery {
     fires.push(f);
   });
 
+  const forts = map.forts.map((f, i) => {
+    const built = fortress(f, i);
+    group.add(built.group);
+    return built.vis;
+  });
+
   return {
     group,
+    updateForts(list, myTeam) {
+      list.forEach((f, i) => {
+        const v = forts[i];
+        if (!v) return;
+        // The flag climbs as the fortress is taken, in the color of whoever is taking it.
+        const towards = f.capture > 0 ? 0 : 1;
+        const color = Math.abs(f.capture) < 0.02 ? NEUTRAL : TEAM_LOOKS[towards]!.main;
+        (v.flag.material as THREE.MeshToonMaterial).color.set(color);
+        v.flag.position.y = 1.2 + Math.abs(f.capture) * 5.1;
+        if (v.owner !== f.owner) {
+          v.owner = f.owner;
+          (v.floor.material as THREE.MeshLambertMaterial).color.set(f.owner < 0 ? NEUTRAL : TEAM_LOOKS[f.owner]!.main);
+          v.signs.forEach((s, k) => (s.visible = k === (f.owner < 0 ? 0 : f.owner === myTeam ? 1 : 2)));
+        }
+      });
+    },
     animate(t: number) {
+      forts.forEach((v, i) => (v.flag.rotation.y = Math.sin(t * 2.2 + i) * 0.2));
       cloths.forEach((c, i) => (c.rotation.y = Math.sin(t * 2 + i) * 0.25));
       fires.forEach((f, i) => {
         const fire = f.userData.fire as THREE.Mesh;

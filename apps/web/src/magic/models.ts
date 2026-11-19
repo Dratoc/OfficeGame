@@ -262,6 +262,27 @@ function dragon(look: TeamLook): UnitRig {
   return { root, body, head, armL, armR, legL, legR, orb, cape: null, height: 1.2 };
 }
 
+/** A fortress gate: heavy wooden double door with iron bands. Its rig's body is the door. */
+function gate(): UnitRig {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const plank = geo('g-plank', () => new THREE.BoxGeometry(0.7, 3.4, 0.35));
+  for (let i = 0; i < 6; i++) body.add(part(plank, i % 2 ? '#7a4f2e' : '#6b4428', -1.85 + i * 0.74, 1.7, 0));
+  const band = geo('g-band', () => new THREE.BoxGeometry(4.4, 0.18, 0.42));
+  for (const y of [0.6, 1.8, 3]) body.add(part(band, '#4a4f57', 0, y, 0));
+  const stud = geo('g-stud', () => new THREE.SphereGeometry(0.07, 6, 4));
+  for (const y of [0.6, 1.8, 3]) for (let i = -2; i <= 2; i++) body.add(part(stud, '#9aa2ab', i * 0.85, y, 0.22));
+  const empty = () => new THREE.Group();
+  const head = empty();
+  const armL = empty();
+  const armR = empty();
+  const legL = empty();
+  const legR = empty();
+  body.add(head, armL, armR, legL, legR);
+  return { root, body, head, armL, armR, legL, legR, orb: null, cape: null, height: 3.6 };
+}
+
 const bakedMat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient() });
 
 /**
@@ -310,7 +331,7 @@ function bake(rig: UnitRig): UnitRig {
 
 export function buildUnit(kind: MfUnitKind, team: number): UnitRig {
   const look = TEAM_LOOKS[team] ?? TEAM_LOOKS[0]!;
-  const rig = kind === 'commander' ? commander(look) : kind === 'mage' ? mage(look) : kind === 'beast' ? dragon(look) : warrior(look);
+  const rig = kind === 'gate' ? gate() : kind === 'commander' ? commander(look) : kind === 'mage' ? mage(look) : kind === 'beast' ? dragon(look) : warrior(look);
   return bake(rig);
 }
 
