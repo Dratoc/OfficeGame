@@ -8,8 +8,9 @@ export const MF_DT = 1 / MF_TICK_RATE;
 export const MF_TICK_MS = 1000 / MF_TICK_RATE;
 
 /** Beasts (dragons) are planned for a later stage; the type is here so orders already know them. */
-export type MfUnitKind = 'commander' | 'warrior' | 'mage' | 'beast';
-export type MfSoldierKind = Exclude<MfUnitKind, 'commander'>;
+/** 'gate' is a fortress gate: it never moves or attacks, but it can be hit, broken and rebuilt. */
+export type MfUnitKind = 'commander' | 'warrior' | 'mage' | 'beast' | 'gate';
+export type MfSoldierKind = 'warrior' | 'mage' | 'beast';
 
 export interface MfMelee {
   damage: number;
@@ -113,6 +114,18 @@ export const UNIT_STATS: Record<MfUnitKind, MfUnitStats> = {
     breath: { damage: 20, range: 6.5, arc: 0.45, cooldown: 3 },
     flying: true,
   },
+  gate: {
+    hp: 900,
+    speed: 0,
+    radius: 2.2,
+    damageTaken: 1,
+    melee: null,
+    ranged: null,
+    sight: 0,
+    capacity: 0,
+    breath: null,
+    flying: false,
+  },
 };
 
 /**
@@ -120,11 +133,46 @@ export const UNIT_STATS: Record<MfUnitKind, MfUnitStats> = {
  * Warriors cut down mages up close, mages shoot dragons out of the sky, dragons burn warriors.
  */
 export const DAMAGE_VS: Record<MfUnitKind, Partial<Record<MfUnitKind, number>>> = {
-  commander: {},
+  commander: { gate: 1.5 },
   warrior: { mage: 1.5, beast: 0.75 },
-  mage: { beast: 1.7, warrior: 0.9 },
-  beast: { warrior: 1.5, mage: 0.8 },
+  // Magic bolts barely scratch a gate; dragons' fire burns the wood.
+  mage: { beast: 1.7, warrior: 0.9, gate: 0.4 },
+  beast: { warrior: 1.5, mage: 0.8, gate: 1.4 },
+  gate: {},
 };
+
+/** Conquest match rules: points, gold, capture, gates. All tunable here. */
+export const CONQUEST = {
+  /** First army to this many victory points wins. */
+  victoryPoints: 300,
+  /** Victory points per second for each fortress held. */
+  vpPerFort: 1,
+  /** If nobody reaches the target, the most points at this time wins (seconds). */
+  timeLimit: 15 * 60,
+  startGold: 200,
+  goldPerSecond: 2,
+  goldPerFort: 2.5,
+  /** Gold for each enemy soldier killed, times its capacity (a dragon is worth 5). */
+  goldPerKill: 6,
+  goldPerCommander: 40,
+  /** Seconds for one soldier alone to take a neutral fortress (more soldiers are faster, up to x2). */
+  captureTime: 12,
+  /** A broken gate is rebuilt this long after it fell, if no enemy is close. */
+  gateRebuild: 40,
+  commanderRespawn: 10,
+  /** Soldiers left behind with each press of the garrison key. */
+  garrisonStep: 3,
+};
+
+/** Price in gold and training time in seconds for each kind of soldier. */
+export const RECRUIT: Record<MfSoldierKind, { cost: number; time: number }> = {
+  warrior: { cost: 40, time: 3 },
+  mage: { cost: 60, time: 5 },
+  beast: { cost: 220, time: 12 },
+};
+
+/** Starting army of each side in a conquest match. */
+export const CONQUEST_START = { warriors: 8, mages: 4, beasts: 0 };
 
 /** Flying height of dragons (their body), used by projectiles and the renderer. */
 export const MF_FLY_HEIGHT = 2.8;

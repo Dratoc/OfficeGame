@@ -1,7 +1,8 @@
 import { mulberry32 } from '../rng';
 import { ARMY, DAMAGE_VS, MF_DT, MF_FLY_HEIGHT, MF_GRAVITY, UNIT_STATS, type MfComposition, type MfFormation, type MfSoldierKind, type MfUnitKind } from './config';
 import { assignSlots, defendSlots, followSlots } from './formation';
-import { magicMap, type MfObstacle } from './map';
+import { magicMap, type MfMapId, type MfObstacle } from './map';
+import { applyEconomyInput, conquestStep, onUnitDeath } from './conquest';
 
 /**
  * Magic Frontiers battle simulation. Pure and deterministic: the browser runs it for the prototype,
@@ -63,6 +64,8 @@ export interface MfUnit {
   /** Who hurt this unit last and how long ago, so soldiers defend themselves. */
   hurtBy: number;
   hurtT: number;
+  /** Fortress this soldier was left to defend (-1 = with the army). Orders don't reach it. */
+  garrison: number;
 }
 
 export interface MfArmy {
@@ -96,7 +99,36 @@ export interface MfProjectile {
   age: number;
 }
 
+/** A fortress in a conquest match. */
+export interface MfFort {
+  id: number;
+  name: string;
+  x: number;
+  z: number;
+  half: number;
+  /** Team holding it, or -1 while neutral. */
+  owner: number;
+  /** -1..1: +1 fully taken by team 0, -1 by team 1. */
+  capture: number;
+  /** Someone from each side is inside. */
+  contested: boolean;
+  /** Gate unit ids. */
+  gates: number[];
+}
+
+/** Gold, points and the training queue of one side. */
+export interface MfEconomy {
+  gold: number;
+  vp: number;
+  queue: { kind: MfSoldierKind; at: number; left: number; total: number }[];
+  /** Seconds until the fallen commander is back at the base (0 = alive). */
+  respawn: number;
+}
+
 export interface MfWorld {
+  mode: MfMapId;
+  forts: MfFort[];
+  econ: MfEconomy[];
   tick: number;
   time: number;
   units: MfUnit[];
@@ -126,6 +158,10 @@ export interface MfInput {
   volley: boolean;
   /** Change the marching formation. */
   formation?: MfFormation | null;
+  /** Conquest: train a soldier at the recruitment point nearest to the commander. */
+  buy?: MfSoldierKind | null;
+  /** Conquest: leave soldiers to defend the fortress the commander stands in, or take them back. */
+  garrison?: 'leave' | 'recall' | null;
 }
 
 export const MF_NO_INPUT: MfInput = { mx: 0, mz: 0, aimX: 0, aimZ: 0, strike: false, order: null, select: null, volley: false, formation: null };
@@ -142,6 +178,11 @@ export type MfEvent =
   | { t: 'breath'; id: number }
   | { t: 'formation'; team: number; formation: MfFormation }
   | { t: 'spawn'; id: number }
+  | { t: 'fort'; id: number; owner: number; from: number }
+  | { t: 'recruit'; team: number; kind: MfSoldierKind; at: number }
+  | { t: 'garrison'; team: number; fort: number; n: number; recall: boolean }
+  | { t: 'respawn'; id: number }
+  | { t: 'denied'; team: number; reason: string }
   | { t: 'end'; winner: number };
 
 export interface MfArmySetup extends MfComposition {
@@ -198,10 +239,18 @@ function makeUnit(world: MfWorld, team: number, kind: MfUnitKind, x: number, z: 
     nudgeT: 0,
     hurtBy: -1,
     hurtT: 99,
+    garrison: -1,
   };
 }
 
 /** Adds an army: a commander and its soldiers already standing in formation. */
+export function makeGate(world: MfWorld, x: number, z: number, facing: number): MfUnit {
+  const g = makeUnit(world, -1, 'gate', x, z, facing);
+  g.alive = false;
+  world.units.push(g);
+  return g;
+}
+
 export function addArmy(world: MfWorld, setup: MfArmySetup): MfArmy {
   const team = world.armies.length;
   const cmd = makeUnit(world, team, 'commander', setup.x, setup.z, setup.facing);
@@ -226,8 +275,8 @@ export function addArmy(world: MfWorld, setup: MfArmySetup): MfArmy {
   return army;
 }
 
-export function createMagicWorld(seed: number): MfWorld {
-  return { tick: 0, time: 0, units: [], armies: [], projectiles: [], nextId: 1, nextShot: 1, rnd: mulberry32(seed), over: false, winner: -1 };
+export function createMagicWorld(seed: number, mode: MfMapId = 'skirmish'): MfWorld {
+  return { mode, forts: [], econ: [], tick: 0, time: 0, units: [], armies: [], projectiles: [], nextId: 1, nextShot: 1, rnd: mulberry32(seed), over: false, winner: -1 };
 }
 
 /** A skirmish: the player's army in the south camp against an AI army in the north. */
@@ -237,7 +286,7 @@ export function createMagicBattle(
   player: MfComposition = { warriors: 6, mages: 4, beasts: 0 },
 ): MfWorld {
   const map = magicMap();
-  const w = createMagicWorld(seed);
+  const w = createMagicWorld(seed, 'skirmish');
   addArmy(w, { name: 'Tu ejército', ...player, ...map.playerSpawn });
   addArmy(w, { name: 'Ejército de la Frontera Roja', ...enemy, ...map.enemyCamp });
   return w;
@@ -283,6 +332,7 @@ export function armyCount(world: MfWorld, team: number): MfArmyCount {
   const c: MfArmyCount = { warrior: 0, mage: 0, beast: 0, warriorMax: 0, mageMax: 0, beastMax: 0, commanderHp: 0, commanderMax: 1 };
   for (const u of world.units) {
     if (u.team !== team) continue;
+    if (u.kind === 'gate') continue;
     if (u.kind === 'commander') {
       c.commanderHp = Math.max(0, u.hp);
       c.commanderMax = u.maxHp;
@@ -302,7 +352,8 @@ function nearestEnemy(world: MfWorld, from: { x: number; z: number }, team: numb
   // About a hundred units at most: a straight scan per decision is cheaper than keeping a grid.
   for (const u of world.units) {
     if (!u.alive || u.team === team) continue;
-    const d = dist(from, u);
+    // Soldiers come before gates: a gate only gets attention when nobody else is near.
+    const d = dist(from, u) + (u.kind === 'gate' ? 6 : 0);
     if (d < bd && (!pred || pred(u))) {
       bd = d;
       best = u;
@@ -327,7 +378,9 @@ function damage(world: MfWorld, u: MfUnit, amount: number, by: number, events: M
     u.vx = u.vz = 0;
     u.swing = -1;
     u.volleyIn = -1;
+    u.deadFor = 0;
     events.push({ t: 'death', id: u.id });
+    if (world.mode === 'conquest') onUnitDeath(world, u, attacker);
   }
 }
 
@@ -367,7 +420,7 @@ function applyCommand(world: MfWorld, army: MfArmy, input: MfInput, events: MfEv
     army.planKey = '';
     events.push({ t: 'formation', team: army.team, formation: army.formation });
   }
-  const chosen = (u: MfUnit) => u.alive && u.team === army.team && u.kind !== 'commander' && (army.selection === 'all' || u.kind === army.selection);
+  const chosen = (u: MfUnit) => u.alive && u.team === army.team && u.kind !== 'commander' && u.kind !== 'gate' && u.garrison < 0 && (army.selection === 'all' || u.kind === army.selection);
   if (input.order) {
     const order = input.order;
     let focus = -1;
@@ -400,8 +453,9 @@ function applyCommand(world: MfWorld, army: MfArmy, input: MfInput, events: MfEv
     army.planKey = '';
     events.push({ t: 'order', team: army.team, order, selection: army.selection, focus });
   }
+  if (world.mode === 'conquest') applyEconomyInput(world, army, input, events);
   if (input.volley && army.volleyCd <= 0) {
-    const mages = world.units.filter((u) => u.alive && u.team === army.team && UNIT_STATS[u.kind].ranged && u.kind !== 'commander');
+    const mages = world.units.filter((u) => u.alive && u.team === army.team && UNIT_STATS[u.kind].ranged && u.kind !== 'commander' && u.garrison < 0);
     if (mages.length) {
       army.volleyCd = ARMY.volleyCooldown;
       events.push({ t: 'volley', team: army.team, x: input.aimX, z: input.aimZ });
@@ -667,6 +721,10 @@ function integrate(world: MfWorld, obstacles: MfObstacle[], half: number) {
       const b = live[j]!;
       // Flyers only bump into other flyers.
       if (UNIT_STATS[b.kind].flying !== fa) continue;
+      // A gate lets its own side through and never moves.
+      const ga = a.kind === 'gate';
+      const gb = b.kind === 'gate';
+      if ((ga || gb) && (a.team === b.team || (ga && gb))) continue;
       const r = ra + UNIT_STATS[b.kind].radius;
       const dx = b.x - a.x;
       const dz = b.z - a.z;
@@ -676,12 +734,14 @@ function integrate(world: MfWorld, obstacles: MfObstacle[], half: number) {
       const push = (r - l) / 2;
       const nx = dd ? dx / l : 1;
       const nz = dd ? dz / l : 0;
-      a.x -= nx * push;
-      a.z -= nz * push;
-      b.x += nx * push;
-      b.z += nz * push;
+      const ka = ga ? 0 : gb ? 2 : 1;
+      const kb = gb ? 0 : ga ? 2 : 1;
+      a.x -= nx * push * ka;
+      a.z -= nz * push * ka;
+      b.x += nx * push * kb;
+      b.z += nz * push * kb;
     }
-    for (const o of fa ? [] : obstacles) {
+    for (const o of fa || a.kind === 'gate' ? [] : obstacles) {
       const dx = a.x - o.x;
       const dz = a.z - o.z;
       const r = o.r + ra;
@@ -738,7 +798,7 @@ function planFormation(world: MfWorld, army: MfArmy, cmd: MfUnit) {
   // never sends the whole army running around him.
   const sp = Math.hypot(cmd.vx, cmd.vz);
   if (sp > 1.2) army.heading = turnTowards(army.heading, Math.atan2(cmd.vx, cmd.vz), ARMY.headingTurnRate * MF_DT);
-  const followers = world.units.filter((u) => u.alive && u.team === army.team && u.kind !== 'commander' && u.order !== 'defend');
+  const followers = world.units.filter((u) => u.alive && u.team === army.team && u.kind !== 'commander' && u.kind !== 'gate' && u.order !== 'defend');
   const groups = { warrior: [] as MfUnit[], mage: [] as MfUnit[], beast: [] as MfUnit[] };
   for (const u of followers) groups[u.kind as MfSoldierKind].push(u);
   const slots = followSlots(groups.warrior.length, groups.mage.length, groups.beast.length, army.formation);
@@ -769,7 +829,7 @@ function planFormation(world: MfWorld, army: MfArmy, cmd: MfUnit) {
 export function stepMagicWorld(world: MfWorld, inputs: Map<number, MfInput>): MfEvent[] {
   const events: MfEvent[] = [];
   if (world.over) return events;
-  const map = magicMap();
+  const map = magicMap(world.mode);
   world.tick++;
   world.time += MF_DT;
 
@@ -793,7 +853,7 @@ export function stepMagicWorld(world: MfWorld, inputs: Map<number, MfInput>): Mf
     u.cd = Math.max(0, u.cd - MF_DT);
     u.hurtT += MF_DT;
     landSwing(world, u, events);
-    if (u.kind === 'commander') continue;
+    if (u.kind === 'commander' || u.kind === 'gate') continue;
     const cmd = commanderOf(world, u.team);
     const plan = think(world, u, cmd);
     steer(world, u, plan.gx, plan.gz, plan.run, map.obstacles);
@@ -819,6 +879,10 @@ export function stepMagicWorld(world: MfWorld, inputs: Map<number, MfInput>): Mf
   integrate(world, map.obstacles, map.half);
   flyProjectiles(world, map.obstacles, events);
 
+  if (world.mode === 'conquest') {
+    conquestStep(world, events);
+    return events;
+  }
   // An army is beaten when its commander falls or it has no soldiers left.
   const beaten = world.armies.map((a) => {
     const cmd = unitById(world, a.commander)!;

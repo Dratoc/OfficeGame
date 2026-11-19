@@ -1,4 +1,4 @@
-import { ARMY, UNIT_STATS, armyCount, type MfFormation, type MfOrder, type MfSelection, type MfUnit, type MfWorld } from '@inbox/shared';
+import { ARMY, CONQUEST, RECRUIT, UNIT_STATS, armyCount, capacityWithQueue, type MfFormation, type MfOrder, type MfSelection, type MfUnit, type MfWorld } from '@inbox/shared';
 
 /**
  * On-screen panels: your army (living units per kind, the order each group follows and which group
@@ -42,6 +42,18 @@ export class MagicHud {
   private bannerTimer = 0;
   private toastTimer = 0;
   private last = '';
+  private conquest: {
+    root: HTMLDivElement;
+    vp: [HTMLElement, HTMLElement];
+    vpText: [HTMLElement, HTMLElement];
+    clock: HTMLElement;
+    forts: HTMLElement[];
+    gold: HTMLElement;
+    shop: Record<'warrior' | 'mage' | 'beast', HTMLElement>;
+    queue: HTMLElement;
+    respawn: HTMLElement;
+  } | null = null;
+  private lastConquest = '';
 
   constructor(container: HTMLElement) {
     this.root = el('div', 'mf-hud', container);
@@ -96,6 +108,43 @@ export class MagicHud {
     this.hintEl = el('div', 'mf-hint', this.root, 'Haz clic en el campo para tomar el mouse · Esc lo suelta');
   }
 
+  /** Conquest panels: victory points, the three fortresses, gold, recruiting and garrisons. */
+  private buildConquest() {
+    const root = el('div', 'mf-conquest', this.root);
+    const score = el('div', 'mf-panel mf-score', root);
+    const vpRow = (cls: string, label: string) => {
+      const r = el('div', `mf-vp ${cls}`, score);
+      el('span', 'mf-vp-label', r, label);
+      const bar = el('div', 'mf-bar', r);
+      const fill = el('div', 'mf-bar-fill', bar);
+      const text = el('b', 'mf-vp-num', r);
+      return [fill, text] as const;
+    };
+    const [v0, t0] = vpRow('mf-vp-me', 'Tú');
+    const [v1, t1] = vpRow('mf-vp-foe', 'Rival');
+    const meta = el('div', 'mf-score-meta', score);
+    const clock = el('span', '', meta);
+    const forts = ['A', 'B', 'C'].map((l) => el('span', 'mf-fort', meta, l));
+    const shopPanel = el('div', 'mf-panel mf-shop', root);
+    const gold = el('div', 'mf-gold', shopPanel);
+    const item = (k: 'warrior' | 'mage' | 'beast', key: string, label: string) => {
+      const b = el('div', 'mf-buy', shopPanel);
+      el('kbd', 'mf-kbd', b, key);
+      el('span', '', b, `${label} · ${RECRUIT[k].cost}`);
+      return b;
+    };
+    const shop = { warrior: item('warrior', 'Z', 'Guerrero'), mage: item('mage', 'X', 'Mago'), beast: item('beast', 'C', 'Dragón') };
+    const queue = el('div', 'mf-queue', shopPanel);
+    const g = el('div', 'mf-buy mf-garrison', shopPanel);
+    el('kbd', 'mf-kbd', g, 'G');
+    el('span', '', g, `Dejar ${CONQUEST.garrisonStep} en la fortaleza`);
+    const r = el('div', 'mf-buy mf-garrison', shopPanel);
+    el('kbd', 'mf-kbd', r, 'H');
+    el('span', '', r, 'Recoger guarnición');
+    const respawn = el('div', 'mf-respawn', this.root);
+    this.conquest = { root, vp: [v0, v1], vpText: [t0, t1], clock, forts, gold, shop, queue, respawn };
+  }
+
   banner(title: string, sub = '', ms = 2200, cls = '') {
     this.bannerEl.innerHTML = '';
     el('strong', '', this.bannerEl, title);
@@ -126,7 +175,39 @@ export class MagicHud {
     this.hintEl.style.display = locked ? 'none' : '';
   }
 
+  private updateConquest(world: MfWorld, team: number) {
+    if (!this.conquest) this.buildConquest();
+    const q = this.conquest!;
+    const econ = world.econ[team]!;
+    const foe = world.econ[1 - team]!;
+    const left = Math.max(0, CONQUEST.timeLimit - world.time);
+    const key = JSON.stringify([Math.floor(econ.vp), Math.floor(foe.vp), Math.floor(econ.gold), Math.ceil(left), world.forts.map((f) => [f.owner, Math.round(f.capture * 20), f.contested]), econ.queue.map((x) => [x.kind, Math.ceil(x.left * 2)]), Math.ceil(econ.respawn), capacityWithQueue(world, team)]);
+    if (key === this.lastConquest) return;
+    this.lastConquest = key;
+    [econ, foe].forEach((e, i) => {
+      q.vp[i]!.style.width = `${Math.min(100, (e.vp / CONQUEST.victoryPoints) * 100)}%`;
+      q.vpText[i]!.textContent = `${Math.floor(e.vp)} / ${CONQUEST.victoryPoints}`;
+    });
+    q.clock.textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+    world.forts.forEach((f, i) => {
+      const chip = q.forts[i]!;
+      chip.className = `mf-fort ${f.owner < 0 ? '' : f.owner === team ? 'mine' : 'theirs'} ${f.contested ? 'contested' : ''}`;
+      const toward = f.capture === 0 ? '' : (f.capture > 0) === (team === 0) ? ' · tú ' : ' · rival ';
+      chip.title = `${f.name}${toward}${Math.round(Math.abs(f.capture) * 100)} %`;
+      chip.style.setProperty('--cap', `${Math.abs(f.capture) * 100}%`);
+      chip.style.setProperty('--capc', f.capture === 0 ? 'transparent' : (f.capture > 0) === (team === 0) ? '#4fa3ff' : '#ff6b57');
+    });
+    const room = ARMY.maxCapacity - capacityWithQueue(world, team);
+    q.gold.innerHTML = `<b>${Math.floor(econ.gold)}</b> de oro <span class="mf-cap">· +${(CONQUEST.goldPerSecond + world.forts.filter((f) => f.owner === team).length * CONQUEST.goldPerFort).toFixed(1)}/s · ${room} lugares libres</span>`;
+    (['warrior', 'mage', 'beast'] as const).forEach((k) => q.shop[k].classList.toggle('off', econ.gold < RECRUIT[k].cost || room < UNIT_STATS[k].capacity));
+    const first = econ.queue[0];
+    q.queue.textContent = first ? `Entrenando: ${econ.queue.map((x) => ({ warrior: 'guerrero', mage: 'mago', beast: 'dragón' })[x.kind]).join(', ')} · ${Math.ceil(first.left)} s` : 'Los soldados aparecen en tu campamento o fortaleza más cercana';
+    q.respawn.textContent = econ.respawn > 0 ? `Tu comandante cayó. Vuelve al campamento en ${Math.ceil(econ.respawn)} s` : '';
+    q.respawn.style.display = econ.respawn > 0 ? '' : 'none';
+  }
+
   update(world: MfWorld, team: number) {
+    if (world.mode === 'conquest') this.updateConquest(world, team);
     const mine = world.units.filter((u) => u.team === team && u.kind !== 'commander');
     const c = armyCount(world, team);
     const e = armyCount(world, 1 - team);

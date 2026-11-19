@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ARMY, MF_FLY_HEIGHT, UNIT_STATS, commanderOf, magicMap, type MfEvent, type MfOrder, type MfUnit, type MfWorld } from '@inbox/shared';
+import { ARMY, MF_FLY_HEIGHT, RECRUIT, UNIT_STATS, commanderOf, magicMap, type MfMapId, type MfEvent, type MfOrder, type MfUnit, type MfWorld } from '@inbox/shared';
 import { sfx } from '../office/sfx';
 import { buildUnit, RING_GEO, TEAM_LOOKS, type UnitRig } from './models';
 import { buildScenery, type Scenery } from './scenery';
@@ -40,6 +40,8 @@ interface Wave {
   max: number;
   size: number;
 }
+
+const KIND_LABEL = { warrior: 'Guerrero', mage: 'Mago', beast: 'Dragón' } as const;
 
 const FORMATION_LABEL = { line: 'Línea', wedge: 'Cuña', column: 'Columna' } as const;
 
@@ -107,7 +109,10 @@ export class MagicArena {
   /** Ids the HUD/camera care about. */
   private myTeam = 0;
 
-  constructor(private container: HTMLElement) {
+  constructor(
+    private container: HTMLElement,
+    private mapId: MfMapId = 'skirmish',
+  ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
@@ -130,7 +135,7 @@ export class MagicArena {
     this.sun.shadow.bias = -0.0006;
     this.scene.add(this.sun, this.sun.target);
 
-    this.scenery = buildScenery();
+    this.scenery = buildScenery(mapId);
     this.scene.add(this.scenery.group);
 
     // Aim reticle on the ground, with a rune circle that lights up when a volley is ready.
@@ -278,6 +283,40 @@ export class MagicArena {
           break;
         case 'spawn':
           break;
+        case 'fort': {
+          const f = world.forts[e.id]!;
+          if (e.owner === this.myTeam) {
+            sfx.go();
+            this.hud.banner('¡Fortaleza tomada!', `${f.name} ahora es tuya: da puntos, oro y recluta soldados`, 2600, 'mf-cry');
+          } else if (e.owner >= 0) {
+            sfx.ko();
+            this.hud.toast(`El enemigo tomó la ${f.name}`);
+          } else if (e.from === this.myTeam) this.hud.toast(`¡Perdiste la ${f.name}! Recupérala`);
+          else this.hud.toast(`La ${f.name} vuelve a ser neutral`);
+          this.wave(f.x, f.z, e.owner < 0 ? '#ffffff' : TEAM_LOOKS[e.owner]!.main, f.half + 3, 1.2);
+          break;
+        }
+        case 'recruit':
+          if (e.team === this.myTeam) {
+            sfx.beep();
+            this.hud.toast(`${KIND_LABEL[e.kind]} en entrenamiento (${RECRUIT[e.kind].cost} de oro)`);
+          }
+          break;
+        case 'garrison':
+          if (e.team === this.myTeam) {
+            sfx.beep();
+            this.hud.toast(e.recall ? `${e.n} soldados vuelven al ejército` : e.n ? `${e.n} soldados quedan defendiendo la fortaleza` : 'No hay soldados de ese grupo para dejar');
+          }
+          break;
+        case 'respawn':
+          if (world.units[e.id - 1]?.team === this.myTeam) this.hud.banner('¡De vuelta!', 'Tu comandante regresó al campamento', 1800);
+          break;
+        case 'denied':
+          if (e.team === this.myTeam) {
+            sfx.block();
+            this.hud.toast(e.reason);
+          }
+          break;
         case 'select':
           if (e.team === this.myTeam) sfx.beep();
           break;
@@ -388,6 +427,7 @@ export class MagicArena {
     this.sun.position.set(cp.x + 30, 55, cp.z - 20);
     this.sun.target.position.set(cp.x, 0, cp.z + 6);
     this.scenery.animate(this.clock);
+    if (world.forts.length) this.scenery.updateForts(world.forts, this.myTeam);
     this.hud.update(world, this.myTeam);
     this.renderer.render(this.scene, this.camera);
   }
@@ -395,7 +435,7 @@ export class MagicArena {
   /** Keeps the camera out of towers and tents: slide it closer to the commander and up. */
   private avoidWalls(cp: { x: number; z: number }, cam: THREE.Vector3) {
     let best = 1;
-    for (const o of magicMap().obstacles) {
+    for (const o of magicMap(this.mapId).obstacles) {
       if (o.kind !== 'tower' && o.kind !== 'tent') continue;
       const top = o.kind === 'tower' ? 8.2 : 3;
       for (let t = 0.25; t <= 1; t += 0.05) {
@@ -419,8 +459,18 @@ export class MagicArena {
     const { rig } = v;
     rig.root.position.set(p.x, 0, p.z);
     rig.root.rotation.y = u.facing;
+    if (u.kind === 'gate') {
+      this.animateGate(u, v, p, dt);
+      return;
+    }
     v.ring.material = this.ringMat(u.team, u.order, selection === 'all' || selection === u.kind || u.kind === 'commander');
     v.ring.visible = u.alive;
+    if (u.alive && v.dead > 0) {
+      // Back from the dead (a commander returning to camp).
+      v.dead = 0;
+      rig.root.visible = true;
+      rig.body.rotation.set(0, 0, 0);
+    }
 
     if (!u.alive) {
       // Fall backwards, lie there for a while, then sink into the ground.
@@ -500,6 +550,42 @@ export class MagicArena {
       // Anchored at its left edge; offset along the camera's right vector so it lines up.
       const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0);
       v.barFill.position.set(p.x - right.x * (w - 0.06) / 2, h, p.z - right.z * (w - 0.06) / 2);
+    }
+  }
+
+  /** Gates stand in their gap; broken, the door lies flat in pieces until it is rebuilt. */
+  private animateGate(u: MfUnit, v: UnitVis, p: { x: number; z: number }, dt: number) {
+    const { rig } = v;
+    v.ring.visible = false;
+    rig.root.position.set(p.x, 0, p.z);
+    // The door spans the gap, across the wall.
+    rig.root.rotation.y = u.facing;
+    if (!u.alive) {
+      v.dead = Math.min(1, v.dead + dt * 2);
+      rig.body.rotation.x = -v.dead * (Math.PI / 2);
+      rig.body.position.y = 0.1;
+      rig.body.scale.set(1, 1, 0.6);
+      rig.root.visible = u.team >= 0 || v.dead < 1;
+      v.barBg.visible = v.barFill.visible = false;
+      return;
+    }
+    v.dead = 0;
+    rig.root.visible = true;
+    rig.body.scale.set(1, 1, 1);
+    rig.body.position.y = v.hurt > 0 ? 0 : 0;
+    rig.body.rotation.x = v.hurt > 0 ? -v.hurt * 0.3 : 0;
+    v.hurt = Math.max(0, v.hurt - dt);
+    const hurtBar = u.hp < u.maxHp;
+    v.barBg.visible = v.barFill.visible = hurtBar;
+    if (hurtBar) {
+      const w = 3;
+      const h = 4.4;
+      v.barFill.material = this.barMats.fill[u.team === this.myTeam ? 0 : 1]!;
+      v.barBg.scale.set(w, 0.18, 1);
+      v.barBg.position.set(p.x, h, p.z);
+      v.barFill.scale.set((w - 0.08) * (u.hp / u.maxHp), 0.12, 1);
+      const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0);
+      v.barFill.position.set(p.x - (right.x * (w - 0.08)) / 2, h, p.z - (right.z * (w - 0.08)) / 2);
     }
   }
 

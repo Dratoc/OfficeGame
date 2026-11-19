@@ -850,9 +850,9 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .mf-cry strong { color: #ffcf6b; }
 .mf-win strong { color: #ffe27a; }
 .mf-lose strong { color: #ff8b80; }
-.mf-toast { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); padding: 6px 14px; border-radius: 99px; background: rgba(18, 24, 40, 0.78); font-size: 13px; font-weight: 700; opacity: 0; transition: opacity 0.2s; white-space: nowrap; }
+.mf-toast { position: absolute; left: 50%; top: 104px; transform: translateX(-50%); padding: 6px 14px; border-radius: 99px; background: rgba(18, 24, 40, 0.78); font-size: 13px; font-weight: 700; opacity: 0; transition: opacity 0.2s; white-space: nowrap; }
 .mf-toast.show { opacity: 1; }
-.mf-hint { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); font-size: 12px; padding: 4px 12px; border-radius: 99px; background: rgba(18, 24, 40, 0.55); white-space: nowrap; }
+.mf-hint { position: absolute; left: 50%; bottom: 96px; animation: mf-fade 1s 9s forwards; transform: translateX(-50%); font-size: 12px; padding: 4px 12px; border-radius: 99px; background: rgba(18, 24, 40, 0.55); white-space: nowrap; }
 @media (max-width: 720px) {
   .mf-army { min-width: 0; padding: 6px 8px; }
   .mf-row { grid-template-columns: 18px 14px auto auto; font-size: 11px; }
@@ -861,3 +861,24 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
   .mf-key span { display: none; }
   .mf-hint { display: none; }
 }
+@keyframes mf-fade { to { opacity: 0; visibility: hidden; } }
+.mf-score { left: 50%; transform: translateX(-50%); min-width: 300px; padding: 8px 12px; }
+.mf-vp { display: grid; grid-template-columns: 40px 1fr 70px; gap: 8px; align-items: center; font-size: 12px; margin: 2px 0; }
+.mf-vp .mf-bar { height: 9px; }
+.mf-vp-me .mf-bar-fill { background: linear-gradient(90deg, #4fd1ff, #2f6fe0); }
+.mf-vp-foe .mf-bar-fill { background: linear-gradient(90deg, #ff8b6b, #d93a2f); }
+.mf-vp-num { text-align: right; font-variant-numeric: tabular-nums; }
+.mf-score-meta { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 4px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mf-fort { position: relative; overflow: hidden; width: 26px; height: 22px; border-radius: 6px; display: grid; place-items: center; background: rgba(233, 228, 214, 0.9); color: #1b1f2a; font-size: 12px; text-shadow: none; }
+.mf-fort::after { content: ''; position: absolute; left: 0; bottom: 0; height: 4px; width: var(--cap, 0%); background: var(--capc, transparent); }
+.mf-fort.mine { background: #2f6fe0; color: #fff; }
+.mf-fort.theirs { background: #c8382f; color: #fff; }
+.mf-fort.contested { outline: 2px solid #ffd84a; }
+.mf-shop { right: 12px; top: 110px; width: 230px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.mf-gold b { font-size: 18px; color: #ffd86b; }
+.mf-buy { display: flex; gap: 6px; align-items: center; }
+.mf-buy.off { opacity: 0.45; }
+.mf-garrison { margin-top: 2px; }
+.mf-queue { font-size: 11px; opacity: 0.8; min-height: 14px; }
+.mf-respawn { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); padding: 8px 16px; border-radius: 10px; background: rgba(120, 20, 20, 0.75); font-weight: 700; }
+@media (max-width: 720px) { .mf-shop { display: none; } .mf-score { min-width: 200px; } }
