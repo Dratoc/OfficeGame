@@ -33,7 +33,8 @@ apps/web/src/magic/          Parte visual
 | Q | Orden de **Defensa** en el lugar, mirando hacia la mira |
 | F | Orden de **Seguimiento** |
 | E | **Descarga mágica**: todos los magos disparan a la mira |
-| 1 / 2 / 3 | Elegir guerreros, magos o bestias para las próximas órdenes; repetir la tecla (o 4) vuelve a todo el ejército |
+| R | Cambiar la formación de marcha: línea, cuña o columna |
+| 1 / 2 / 3 | Elegir guerreros, magos o dragones para las próximas órdenes; repetir la tecla (o 4) vuelve a todo el ejército |
 
 ## Comportamiento de las unidades
 
@@ -46,8 +47,8 @@ apps/web/src/magic/          Parte visual
 ## Etapas
 
 1. **Prototipo jugable** (hecho): valle, comandante, cámara, 10 soldados (6 guerreros, 4 magos), seguimiento, ataque, defensa, IA enemiga, combates automáticos, descarga mágica con el mouse, contador de unidades.
-2. Sensación de control, formaciones, rendimiento con 50 unidades (modelos instanciados).
-3. Bestias y dragones (ataques dirigidos y de área).
+2. **Formaciones y 50 unidades** (hecho): línea, cuña y columna (R); ejércitos de 10, 25 o 50; cada soldado se dibuja con ~6 llamadas (partes fusionadas con colores en los vértices); la simulación de 50 contra 50 se mide en las pruebas.
+3. **Dragones** (hecho): vuelan sobre árboles y soldados, aliento de fuego en cono, bolas de fuego a distancia, se suman a la descarga (E) y ocupan 5 lugares del ejército. Piedra, papel o tijera entre tipos (`DAMAGE_VS`): guerreros > magos, magos > dragones, dragones > guerreros.
 4. Tres fortalezas: conquista, puertas que se rompen y regeneran, guarniciones.
 5. Oro, puntos de victoria y reclutamiento en las fortalezas.
 6. Partida completa contra un comandante de IA.

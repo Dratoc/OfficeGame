@@ -1,4 +1,4 @@
-import type { MfInput, MfOrder, MfSelection, MfUnit } from '@inbox/shared';
+import { FORMATIONS, type MfFormation, type MfInput, type MfOrder, type MfSelection, type MfUnit } from '@inbox/shared';
 import { sfx } from '../office/sfx';
 
 /** A press stays valid for this many steps, so a quick tap is never lost between steps. */
@@ -11,7 +11,8 @@ const BUFFER = 3;
  *   pointer captured after a click) and moves the aim reticle nearer or farther. Without the
  *   pointer captured, the reticle follows the cursor on the ground and ← → turn the camera.
  * - Left click: the commander's sword. Right click: Attack order on the enemy under the reticle.
- * - Q: Defend here. F: Follow me. E: magic volley at the reticle.
+ * - Q: Defend here. F: Follow me. E: magic volley at the reticle (mages and dragons).
+ * - R: next marching formation (line, wedge, column).
  * - 1, 2, 3 choose warriors, mages or beasts for the next orders; the same key again (or 4) goes
  *   back to the whole army.
  */
@@ -20,6 +21,8 @@ export class MagicControls {
   aimDist = 11;
   locked = false;
   selection: MfSelection = 'all';
+  formation: MfFormation = 'line';
+  private formationPick: MfFormation | null = null;
   /** Messages for the HUD (e.g. beasts are not in this version). */
   onNotice: ((text: string) => void) | null = null;
   onLock: ((locked: boolean) => void) | null = null;
@@ -34,7 +37,7 @@ export class MagicControls {
 
   constructor(private root: HTMLElement, startYaw: number) {
     this.yaw = startYaw;
-    const game = ['w', 'a', 's', 'd', 'q', 'e', 'f', '1', '2', '3', '4', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'];
+    const game = ['w', 'a', 's', 'd', 'q', 'e', 'f', 'r', '1', '2', '3', '4', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'];
     const down = (e: KeyboardEvent) => {
       if (!this.enabled || (e.target as HTMLElement)?.closest?.('input, textarea')) return;
       const k = e.key.toLowerCase();
@@ -44,6 +47,10 @@ export class MagicControls {
         if (k === 'q') this.order = { o: 'defend', n: BUFFER };
         if (k === 'f') this.order = { o: 'follow', n: BUFFER };
         if (k === 'e') this.volley = BUFFER;
+        if (k === 'r') {
+          this.formation = FORMATIONS[(FORMATIONS.indexOf(this.formation) + 1) % FORMATIONS.length]!;
+          this.formationPick = this.formation;
+        }
         if (k === '1' || k === '2' || k === '3' || k === '4') this.pick(k);
       }
       this.keys.add(k);
@@ -103,10 +110,6 @@ export class MagicControls {
 
   private pick(k: string) {
     const kind: MfSelection = k === '1' ? 'warrior' : k === '2' ? 'mage' : k === '3' ? 'beast' : 'all';
-    if (kind === 'beast') {
-      this.onNotice?.('Las bestias y dragones llegan en la etapa 3');
-      return;
-    }
     this.selection = this.selection === kind ? 'all' : kind;
     this.select = this.selection;
   }
@@ -158,7 +161,9 @@ export class MagicControls {
       order: this.order ? this.order.o : null,
       select: this.select,
       volley: this.volley > 0,
+      formation: this.formationPick,
     };
+    this.formationPick = null;
     // One-shot presses are consumed as soon as they are sent.
     if (input.order) this.order = null;
     if (input.volley) this.volley = 0;

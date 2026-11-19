@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { MfUnitKind } from '@inbox/shared';
-import { toon } from '../office/avatar3d';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { toon, toonGradient } from '../office/avatar3d';
 
 /**
  * Stylized medieval soldiers built from simple shapes: big heads, short legs, readable silhouettes.
@@ -187,11 +188,130 @@ function commander(look: TeamLook): UnitRig {
   return { ...rig, cape, height: 1.95 };
 }
 
+/**
+ * Dragon: long body, neck and horned head, bat wings that flap, a tail. Flies at MF_FLY_HEIGHT.
+ * In the rig, the arms are the wings and the legs are the tail (so the generic code can animate it).
+ */
+function dragon(look: TeamLook): UnitRig {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const scale = (m: THREE.Mesh, x: number, y: number, z: number) => (m.scale.set(x, y, z), m);
+  body.add(scale(part(geo('d-body', () => new THREE.SphereGeometry(0.6, 14, 10)), look.main, 0, 0, 0), 1, 0.8, 1.55));
+  body.add(scale(part(geo('d-belly', () => new THREE.SphereGeometry(0.5, 12, 8)), GOLD, 0, -0.18, 0.05), 0.9, 0.6, 1.4));
+  // Spikes along the back.
+  for (let i = 0; i < 4; i++) body.add(part(geo('d-spike', () => new THREE.ConeGeometry(0.1, 0.32, 5)), look.dark, 0, 0.5 - i * 0.04, 0.55 - i * 0.4));
+  const head = new THREE.Group();
+  head.position.set(0, 0.55, 1.15);
+  head.add(scale(part(geo('d-neck', () => new THREE.CylinderGeometry(0.2, 0.3, 0.8, 10)), look.main, 0, -0.25, -0.25), 1, 1, 1).rotateX(0.8));
+  head.add(scale(part(geo('d-head', () => new THREE.SphereGeometry(0.34, 12, 10)), look.main, 0, 0.1, 0.15), 1, 0.85, 1.25));
+  head.add(scale(part(geo('d-snout', () => new THREE.BoxGeometry(0.34, 0.2, 0.42)), look.main, 0, 0.0, 0.55), 1, 1, 1));
+  const eye = geo('d-eye', () => new THREE.SphereGeometry(0.06, 6, 6));
+  head.add(part(eye, '#ffe36b', -0.17, 0.2, 0.42, '#ffe36b'));
+  head.add(part(eye, '#ffe36b', 0.17, 0.2, 0.42, '#ffe36b'));
+  const horn = geo('d-horn', () => new THREE.ConeGeometry(0.06, 0.38, 6).rotateX(-0.9));
+  head.add(part(horn, '#f4ead2', -0.16, 0.38, -0.05));
+  head.add(part(horn, '#f4ead2', 0.16, 0.38, -0.05));
+  body.add(head);
+  // Wings: pivot at the shoulder, membrane in the dark team color.
+  const wing = (side: number) => {
+    const g = new THREE.Group();
+    g.position.set(0.42 * side, 0.3, 0.25);
+    const bone = part(geo('d-bone', () => new THREE.CylinderGeometry(0.05, 0.04, 1.7, 6).rotateZ(Math.PI / 2).translate(0.85, 0, 0)), look.dark);
+    bone.scale.x = side;
+    g.add(bone);
+    const membrane = new THREE.Mesh(
+      geo('d-wing', () => {
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        shape.lineTo(1.7, 0);
+        shape.lineTo(1.3, -0.5);
+        shape.lineTo(0.85, -0.85);
+        shape.lineTo(0.35, -0.75);
+        shape.lineTo(0, -0.45);
+        return new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2);
+      }),
+      new THREE.MeshToonMaterial({ color: look.dark, side: THREE.DoubleSide, gradientMap: toonGradient() }),
+    );
+    membrane.scale.x = side;
+    membrane.castShadow = true;
+    g.add(membrane);
+    body.add(g);
+    return g;
+  };
+  const armL = wing(-1);
+  const armR = wing(1);
+  // Tail in two segments.
+  const legL = new THREE.Group();
+  legL.position.set(0, 0, -0.85);
+  legL.add(part(geo('d-tail1', () => new THREE.ConeGeometry(0.28, 1.1, 8).rotateX(-Math.PI / 2).translate(0, 0, -0.5)), look.main));
+  const legR = new THREE.Group();
+  legR.position.set(0, 0, -1);
+  legR.add(part(geo('d-tail2', () => new THREE.ConeGeometry(0.15, 0.8, 6).rotateX(-Math.PI / 2).translate(0, 0, -0.4)), look.main));
+  legR.add(part(geo('d-tailtip', () => new THREE.ConeGeometry(0.16, 0.3, 4).rotateX(-Math.PI / 2).translate(0, 0, -0.85)), look.dark));
+  legL.add(legR);
+  body.add(legL);
+  // Claws tucked under the belly.
+  body.add(part(geo('d-claw', () => new THREE.BoxGeometry(0.16, 0.3, 0.2)), look.dark, -0.3, -0.5, 0.3));
+  body.add(part(geo('d-claw', () => new THREE.BoxGeometry(0.16, 0.3, 0.2)), look.dark, 0.3, -0.5, 0.3));
+  // The fire glow in the mouth doubles as the "orb" that lights up when it attacks.
+  const orb = part(geo('d-mouth', () => new THREE.SphereGeometry(0.12, 8, 6)), look.magic, 0, -0.02, 0.78, '#ffb347');
+  orb.castShadow = false;
+  head.add(orb);
+  body.position.y = 0;
+  return { root, body, head, armL, armR, legL, legR, orb, cape: null, height: 1.2 };
+}
+
+const bakedMat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient() });
+
+/**
+ * Draw-call diet: every animated part (body, head, arms, legs) becomes a single mesh with its
+ * colors baked into the vertices, so a soldier costs ~6 draw calls instead of ~25.
+ */
+function bake(rig: UnitRig): UnitRig {
+  const parts = [rig.body, rig.head, rig.armL, rig.armR, rig.legL, rig.legR];
+  const keep = new Set<THREE.Object3D>([rig.orb, rig.cape].filter(Boolean) as THREE.Object3D[]);
+  rig.root.updateMatrixWorld(true);
+  for (const g of parts) {
+    const inv = g.matrixWorld.clone().invert();
+    const geos: THREE.BufferGeometry[] = [];
+    const drop: THREE.Mesh[] = [];
+    const visit = (o: THREE.Object3D) => {
+      for (const c of o.children) {
+        if (parts.includes(c as THREE.Group) || keep.has(c)) continue;
+        const m = c as THREE.Mesh;
+        const mat = m.material as THREE.MeshToonMaterial | undefined;
+        if (m.isMesh && mat && !Array.isArray(mat) && mat.side !== THREE.DoubleSide && !mat.emissiveIntensity) {
+          const geo = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+          for (const k of Object.keys(geo.attributes)) if (k !== 'position' && k !== 'normal') geo.deleteAttribute(k);
+          geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));
+          const n = geo.attributes.position!.count;
+          const col = new Float32Array(n * 3);
+          for (let i = 0; i < n; i++) col.set([mat.color.r, mat.color.g, mat.color.b], i * 3);
+          geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+          geos.push(geo);
+          drop.push(m);
+        }
+        visit(c);
+      }
+    };
+    visit(g);
+    if (geos.length < 2) continue;
+    const merged = mergeGeometries(geos);
+    geos.forEach((x) => x.dispose());
+    if (!merged) continue;
+    for (const m of drop) m.parent?.remove(m);
+    const mesh = new THREE.Mesh(merged, bakedMat);
+    mesh.castShadow = true;
+    g.add(mesh);
+  }
+  return rig;
+}
+
 export function buildUnit(kind: MfUnitKind, team: number): UnitRig {
   const look = TEAM_LOOKS[team] ?? TEAM_LOOKS[0]!;
-  if (kind === 'commander') return commander(look);
-  if (kind === 'mage') return mage(look);
-  return warrior(look);
+  const rig = kind === 'commander' ? commander(look) : kind === 'mage' ? mage(look) : kind === 'beast' ? dragon(look) : warrior(look);
+  return bake(rig);
 }
 
 /** Shared ring geometry for the ground marker under each soldier. */

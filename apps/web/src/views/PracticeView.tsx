@@ -30,6 +30,13 @@ function savedGame(): Game {
   }
 }
 
+type MagicSize = 'small' | 'medium' | 'large';
+const SIZES: { id: MagicSize; label: string }[] = [
+  { id: 'small', label: '10 soldados' },
+  { id: 'medium', label: '25 soldados' },
+  { id: 'large', label: '50 soldados' },
+];
+
 const LEVELS = [
   { id: 0.3, label: 'Tranquilo' },
   { id: 0.5, label: 'Normal' },
@@ -49,8 +56,8 @@ function zombiesSummary(w: ZombieWorld): string {
 function magicSummary(w: MfWorld): string {
   const c = armyCount(w, 0);
   const e = armyCount(w, 1);
-  const lost = c.warriorMax + c.mageMax - c.warrior - c.mage;
-  const beaten = e.warriorMax + e.mageMax - e.warrior - e.mage;
+  const lost = c.warriorMax + c.mageMax + c.beastMax - c.warrior - c.mage - c.beast;
+  const beaten = e.warriorMax + e.mageMax + e.beastMax - e.warrior - e.mage - e.beast;
   return `${w.winner === 0 ? '¡Victoria!' : 'Derrota'} · ${beaten} enemigos derrotados · ${lost === 0 ? 'sin bajas' : lost === 1 ? '1 baja' : `${lost} bajas`} · ${Math.round(w.time)} s`;
 }
 
@@ -65,6 +72,7 @@ export function PracticeView() {
   const [game, setGame] = useState<Game>(savedGame);
   const [skill, setSkill] = useState<number>(0.5);
   const [bots, setBots] = useState(1);
+  const [armySize, setArmySize] = useState<MagicSize>('small');
   const [powers, setPowers] = useState<PowerId[]>(savedLoadout);
   const [round, setRound] = useState(0);
   const [result, setResult] = useState<string | null>(null);
@@ -117,6 +125,22 @@ export function PracticeView() {
               </button>
             ))}
           </div>
+          {game === 'magic' && (
+            <div role="group" aria-label="Tamaño de los ejércitos" className="chip-row">
+              {SIZES.map((sz) => (
+                <button
+                  key={sz.id}
+                  className={`chip ${armySize === sz.id ? 'active' : ''}`}
+                  onClick={() => {
+                    setArmySize(sz.id);
+                    restart();
+                  }}
+                >
+                  {sz.label}
+                </button>
+              ))}
+            </div>
+          )}
           {game !== 'magic' && (
           <div role="group" aria-label={coop(game) ? 'Cantidad de compañeros' : 'Cantidad de rivales'} className="chip-row">
             {(coop(game) ? [0, 1, 2, 3] : [1, 2, 3]).map((n) => (
@@ -151,7 +175,7 @@ export function PracticeView() {
       </header>
       <Suspense fallback={<div className="office-stage office-loading">{game === 'magic' ? 'Preparando el campo de batalla…' : 'Cargando la oficina…'}</div>}>
         {game === 'magic' ? (
-          <MagicPracticeStage key={`m${round}`} skill={skill} onEnd={(w) => setResult(magicSummary(w))} />
+          <MagicPracticeStage key={`m${round}`} skill={skill} size={armySize} onEnd={(w) => setResult(magicSummary(w))} />
         ) : game === 'zombies' ? (
           <ZombiesPracticeStage key={`z${round}`} me={me} skill={skill} bots={bots} onEnd={(w) => setResult(zombiesSummary(w))} />
         ) : game === 'sales' ? (

@@ -821,7 +821,6 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .mf-row { display: grid; grid-template-columns: 22px 18px 1fr auto auto; gap: 6px; align-items: center; padding: 3px 6px; border-radius: 8px; font-size: 13px; opacity: 0.55; }
 .mf-row.selected { opacity: 1; background: rgba(255, 255, 255, 0.08); }
 .mf-row.empty .mf-count { color: #ff8b80; }
-.mf-beast { opacity: 0.35 !important; background: none !important; }
 .mf-count { font-variant-numeric: tabular-nums; }
 .mf-order { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: rgba(255, 255, 255, 0.14); font-weight: 700; min-width: 76px; text-align: center; }
 .mf-o-follow { background: rgba(143, 216, 255, 0.3); color: #d8f3ff; }

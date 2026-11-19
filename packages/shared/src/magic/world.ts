@@ -1,5 +1,5 @@
 import { mulberry32 } from '../rng';
-import { ARMY, MF_DT, MF_GRAVITY, UNIT_STATS, type MfSoldierKind, type MfUnitKind } from './config';
+import { ARMY, DAMAGE_VS, MF_DT, MF_FLY_HEIGHT, MF_GRAVITY, UNIT_STATS, type MfComposition, type MfFormation, type MfSoldierKind, type MfUnitKind } from './config';
 import { assignSlots, defendSlots, followSlots } from './formation';
 import { magicMap, type MfObstacle } from './map';
 
@@ -75,6 +75,7 @@ export interface MfArmy {
   plannedHeading: number;
   planKey: string;
   selection: MfSelection;
+  formation: MfFormation;
   volleyCd: number;
   warCry: number;
 }
@@ -102,6 +103,8 @@ export interface MfWorld {
   armies: MfArmy[];
   projectiles: MfProjectile[];
   nextId: number;
+  /** Projectile ids have their own counter so unit ids stay 1..n (unit id = index + 1). */
+  nextShot: number;
   rnd: () => number;
   over: boolean;
   /** Winning team, or -1 while the battle goes on. */
@@ -121,9 +124,11 @@ export interface MfInput {
   order: MfOrder | null;
   select: MfSelection | null;
   volley: boolean;
+  /** Change the marching formation. */
+  formation?: MfFormation | null;
 }
 
-export const MF_NO_INPUT: MfInput = { mx: 0, mz: 0, aimX: 0, aimZ: 0, strike: false, order: null, select: null, volley: false };
+export const MF_NO_INPUT: MfInput = { mx: 0, mz: 0, aimX: 0, aimZ: 0, strike: false, order: null, select: null, volley: false, formation: null };
 
 export type MfEvent =
   | { t: 'swing'; id: number }
@@ -134,12 +139,13 @@ export type MfEvent =
   | { t: 'order'; team: number; order: MfOrder; selection: MfSelection; focus: number }
   | { t: 'select'; team: number; selection: MfSelection }
   | { t: 'volley'; team: number; x: number; z: number }
+  | { t: 'breath'; id: number }
+  | { t: 'formation'; team: number; formation: MfFormation }
+  | { t: 'spawn'; id: number }
   | { t: 'end'; winner: number };
 
-export interface MfArmySetup {
+export interface MfArmySetup extends MfComposition {
   name: string;
-  warriors: number;
-  mages: number;
   x: number;
   z: number;
   facing: number;
@@ -200,19 +206,19 @@ export function addArmy(world: MfWorld, setup: MfArmySetup): MfArmy {
   const team = world.armies.length;
   const cmd = makeUnit(world, team, 'commander', setup.x, setup.z, setup.facing);
   world.units.push(cmd);
-  const army: MfArmy = { team, name: setup.name, commander: cmd.id, heading: setup.facing, plannedHeading: setup.facing, planKey: '', selection: 'all', volleyCd: 0, warCry: 0 };
+  const army: MfArmy = { team, name: setup.name, commander: cmd.id, heading: setup.facing, plannedHeading: setup.facing, planKey: '', selection: 'all', formation: 'line', volleyCd: 0, warCry: 0 };
   world.armies.push(army);
-  const kinds: MfSoldierKind[] = [...Array<MfSoldierKind>(setup.warriors).fill('warrior'), ...Array<MfSoldierKind>(setup.mages).fill('mage')];
-  const slots = followSlots(
-    kinds.filter((k) => k === 'warrior').length,
-    kinds.filter((k) => k === 'mage').length,
-  );
-  let wi = 0;
-  let mi = 0;
+  const kinds: MfSoldierKind[] = [
+    ...Array<MfSoldierKind>(setup.warriors).fill('warrior'),
+    ...Array<MfSoldierKind>(setup.mages).fill('mage'),
+    ...Array<MfSoldierKind>(setup.beasts).fill('beast'),
+  ];
+  const slots = followSlots(setup.warriors, setup.mages, setup.beasts);
+  const next = { warrior: 0, mage: 0, beast: 0 };
   const c = Math.cos(setup.facing);
   const s = Math.sin(setup.facing);
   for (const k of kinds) {
-    const p = k === 'warrior' ? slots.warrior[wi++]! : slots.mage[mi++]!;
+    const p = slots[k][next[k]++]!;
     const x = setup.x + p.x * c + p.z * s;
     const z = setup.z - p.x * s + p.z * c;
     world.units.push(makeUnit(world, team, k, x, z, setup.facing));
@@ -221,22 +227,40 @@ export function addArmy(world: MfWorld, setup: MfArmySetup): MfArmy {
 }
 
 export function createMagicWorld(seed: number): MfWorld {
-  return { tick: 0, time: 0, units: [], armies: [], projectiles: [], nextId: 1, rnd: mulberry32(seed), over: false, winner: -1 };
+  return { tick: 0, time: 0, units: [], armies: [], projectiles: [], nextId: 1, nextShot: 1, rnd: mulberry32(seed), over: false, winner: -1 };
 }
 
-/** The standard prototype battle: the player's army in the south camp against an AI army in the north. */
-export function createMagicBattle(seed: number, enemy: { warriors: number; mages: number } = { warriors: 6, mages: 4 }): MfWorld {
+/** A skirmish: the player's army in the south camp against an AI army in the north. */
+export function createMagicBattle(
+  seed: number,
+  enemy: MfComposition = { warriors: 6, mages: 4, beasts: 0 },
+  player: MfComposition = { warriors: 6, mages: 4, beasts: 0 },
+): MfWorld {
   const map = magicMap();
   const w = createMagicWorld(seed);
-  addArmy(w, { name: 'Tu ejército', warriors: 6, mages: 4, ...map.playerSpawn });
+  addArmy(w, { name: 'Tu ejército', ...player, ...map.playerSpawn });
   addArmy(w, { name: 'Ejército de la Frontera Roja', ...enemy, ...map.enemyCamp });
   return w;
 }
 
+/** Adds one soldier to an army mid-battle (reinforcements). It joins in Follow. */
+export function spawnUnit(world: MfWorld, team: number, kind: MfSoldierKind, x: number, z: number, facing = 0): MfUnit {
+  const u = makeUnit(world, team, kind, x, z, facing);
+  world.units.push(u);
+  world.armies[team]!.planKey = '';
+  return u;
+}
+
+/** Places used in an army (soldiers alive or on their way), for the 50-unit cap. */
+export function armyCapacityUsed(world: MfWorld, team: number): number {
+  let n = 0;
+  for (const u of world.units) if (u.alive && u.team === team) n += UNIT_STATS[u.kind].capacity;
+  return n;
+}
+
 export function unitById(world: MfWorld, id: number): MfUnit | undefined {
   // Ids are handed out in order and units are never removed, so this is a direct index.
-  const u = world.units[id - 1];
-  return u && u.id === id ? u : world.units.find((x) => x.id === id);
+  return world.units[id - 1];
 }
 
 export function commanderOf(world: MfWorld, team: number): MfUnit {
@@ -289,7 +313,8 @@ function nearestEnemy(world: MfWorld, from: { x: number; z: number }, team: numb
 
 function damage(world: MfWorld, u: MfUnit, amount: number, by: number, events: MfEvent[]) {
   if (!u.alive) return;
-  let k = UNIT_STATS[u.kind].damageTaken;
+  const attacker = unitById(world, by);
+  let k = UNIT_STATS[u.kind].damageTaken * (attacker ? DAMAGE_VS[attacker.kind][u.kind] ?? 1 : 1);
   if (u.kind === 'warrior' && u.order === 'defend' && dist(u, { x: u.slotX, z: u.slotZ }) < 1.5) k *= ARMY.defendDamageTaken;
   const dmg = Math.round(amount * k);
   u.hp -= dmg;
@@ -315,7 +340,7 @@ function launch(world: MfWorld, u: MfUnit, tx: number, tz: number, damageAmount:
   const t = d / speed;
   const ty = 0.6;
   world.projectiles.push({
-    id: world.nextId++,
+    id: world.nextShot++,
     team: u.team,
     owner: u.id,
     x: sx,
@@ -337,6 +362,11 @@ function applyCommand(world: MfWorld, army: MfArmy, input: MfInput, events: MfEv
     army.selection = input.select;
     events.push({ t: 'select', team: army.team, selection: army.selection });
   }
+  if (input.formation && input.formation !== army.formation) {
+    army.formation = input.formation;
+    army.planKey = '';
+    events.push({ t: 'formation', team: army.team, formation: army.formation });
+  }
   const chosen = (u: MfUnit) => u.alive && u.team === army.team && u.kind !== 'commander' && (army.selection === 'all' || u.kind === army.selection);
   if (input.order) {
     const order = input.order;
@@ -355,17 +385,12 @@ function applyCommand(world: MfWorld, army: MfArmy, input: MfInput, events: MfEv
     }
     if (order === 'defend') {
       const dir = Math.atan2(input.aimX - cmd.x, input.aimZ - cmd.z);
-      const slots = defendSlots(
-        picked.filter((u) => u.kind === 'warrior').length,
-        picked.filter((u) => u.kind !== 'warrior').length,
-      );
+      const of = (k: MfSoldierKind) => picked.filter((u) => u.kind === k);
+      const slots = defendSlots(of('warrior').length, of('mage').length, of('beast').length);
       const c = Math.cos(dir);
       const s = Math.sin(dir);
       const toWorld = (p: { x: number; z: number }) => ({ x: cmd.x + p.x * c + p.z * s, z: cmd.z - p.x * s + p.z * c });
-      const ws = slots.warrior.map(toWorld);
-      const ms = slots.mage.map(toWorld);
-      assignSlots(picked.filter((u) => u.kind === 'warrior'), ws);
-      assignSlots(picked.filter((u) => u.kind !== 'warrior'), ms);
+      for (const k of ['warrior', 'mage', 'beast'] as const) assignSlots(of(k), slots[k].map(toWorld));
       for (const u of picked) {
         u.anchorX = cmd.x;
         u.anchorZ = cmd.z;
@@ -454,6 +479,19 @@ function think(world: MfWorld, u: MfUnit, cmd: MfUnit): { gx: number; gz: number
 
   const d = dist(u, target);
   const reach = (s.melee?.range ?? 0) + s.radius + UNIT_STATS[target.kind].radius;
+  const breath = s.breath;
+  if (breath) {
+    // Dragons: swoop in close enough to burn, throwing fireballs on the way.
+    if (u.order === 'attack') {
+      if (d > breath.range * 0.7) return { gx: target.x, gz: target.z, run: true, face: null };
+      return { gx: u.x, gz: u.z, run: false, face: target };
+    }
+    if (u.order === 'defend' && dist(target, slot) < ARMY.defendStepOut + breath.range) {
+      const away = Math.max(0.01, d);
+      return d > breath.range * 0.7 ? { gx: target.x - ((target.x - u.x) / away) * breath.range * 0.6, gz: target.z - ((target.z - u.z) / away) * breath.range * 0.6, run: false, face: target } : { gx: u.x, gz: u.z, run: false, face: target };
+    }
+    return { gx: home.x, gz: home.z, run: u.order === 'follow', face: target };
+  }
   if (ranged) {
     // Mages: shoot when in range, back off from anyone too close, otherwise keep their place.
     if (u.order === 'attack') {
@@ -466,7 +504,7 @@ function think(world: MfWorld, u: MfUnit, cmd: MfUnit): { gx: number; gz: number
     }
     return { gx: home.x, gz: home.z, run: u.order === 'follow', face: target };
   }
-  // Warriors (and later beasts): close in and strike.
+  // Warriors: close in and strike.
   if (u.order === 'defend') {
     // Step out of the line only a little, then come back to it.
     if (dist(target, slot) > ARMY.defendStepOut + reach) return { gx: home.x, gz: home.z, run: false, face: target };
@@ -483,6 +521,22 @@ function fight(world: MfWorld, u: MfUnit, events: MfEvent[]) {
   if (!t?.alive) return;
   const d = dist(u, t);
   const reach = (s.melee?.range ?? 0) + s.radius + UNIT_STATS[t.kind].radius;
+  if (s.breath && d <= s.breath.range + UNIT_STATS[t.kind].radius) {
+    // Fire breath: everyone in the cone in front of the dragon burns.
+    u.facing = Math.atan2(t.x - u.x, t.z - u.z);
+    for (const e of world.units) {
+      if (!e.alive || e.team === u.team) continue;
+      const de = dist(u, e);
+      if (de > s.breath.range + UNIT_STATS[e.kind].radius) continue;
+      const a = Math.abs(ANGLE(Math.atan2(e.x - u.x, e.z - u.z) - u.facing));
+      if (a < s.breath.arc || de < s.radius + 0.6) damage(world, e, s.breath.damage, u.id, events);
+    }
+    u.cd = s.breath.cooldown * (0.9 + world.rnd() * 0.2);
+    u.act = 'cast';
+    u.actT = 0;
+    events.push({ t: 'breath', id: u.id });
+    return;
+  }
   if (s.ranged && d <= s.ranged.range && d > reach) {
     // Lead the target a little: aim where it will be when the bolt lands.
     const time = d / s.ranged.speed;
@@ -537,8 +591,8 @@ function steer(world: MfWorld, u: MfUnit, gx: number, gz: number, run: boolean, 
     dz /= d;
     tvx = dx * sp;
     tvz = dz * sp;
-    // Walk around trees and rocks in the way instead of pushing into them.
-    for (const o of obstacles) {
+    // Walk around trees and rocks in the way instead of pushing into them (flyers go over).
+    for (const o of s.flying ? [] : obstacles) {
       const ox = o.x - u.x;
       const oz = o.z - u.z;
       const along = ox * dx + oz * dz;
@@ -575,7 +629,7 @@ function steer(world: MfWorld, u: MfUnit, gx: number, gz: number, run: boolean, 
   }
   // Keep a little room from friends so the group spreads out instead of piling up.
   for (const o of world.units) {
-    if (o === u || !o.alive || o.team !== u.team) continue;
+    if (o === u || !o.alive || o.team !== u.team || UNIT_STATS[o.kind].flying !== s.flying) continue;
     const ox = u.x - o.x;
     const oz = u.z - o.z;
     const r = s.radius + UNIT_STATS[o.kind].radius + 0.45;
@@ -608,8 +662,11 @@ function integrate(world: MfWorld, obstacles: MfObstacle[], half: number) {
   for (let i = 0; i < live.length; i++) {
     const a = live[i]!;
     const ra = UNIT_STATS[a.kind].radius;
+    const fa = UNIT_STATS[a.kind].flying;
     for (let j = i + 1; j < live.length; j++) {
       const b = live[j]!;
+      // Flyers only bump into other flyers.
+      if (UNIT_STATS[b.kind].flying !== fa) continue;
       const r = ra + UNIT_STATS[b.kind].radius;
       const dx = b.x - a.x;
       const dz = b.z - a.z;
@@ -624,7 +681,7 @@ function integrate(world: MfWorld, obstacles: MfObstacle[], half: number) {
       b.x += nx * push;
       b.z += nz * push;
     }
-    for (const o of obstacles) {
+    for (const o of fa ? [] : obstacles) {
       const dx = a.x - o.x;
       const dz = a.z - o.z;
       const r = o.r + ra;
@@ -651,7 +708,8 @@ function flyProjectiles(world: MfWorld, obstacles: MfObstacle[], events: MfEvent
     for (const u of world.units) {
       if (!u.alive || u.team === p.team) continue;
       const r = UNIT_STATS[u.kind].radius + 0.3;
-      if (p.y < 2.3 && Math.hypot(u.x - p.x, u.z - p.z) < r) {
+      const body = UNIT_STATS[u.kind].flying ? Math.abs(p.y - MF_FLY_HEIGHT) < 1.3 : p.y < 2.3;
+      if (body && Math.hypot(u.x - p.x, u.z - p.z) < r) {
         hit = u;
         break;
       }
@@ -667,7 +725,7 @@ function flyProjectiles(world: MfWorld, obstacles: MfObstacle[], events: MfEvent
       for (const u of world.units) {
         if (!u.alive || u.team === p.team || u === hit) continue;
         const d = Math.hypot(u.x - p.x, u.z - p.z);
-        if (d < p.splash) damage(world, u, p.damage * 0.6 * (1 - d / p.splash / 2), p.owner, events);
+        if (d < p.splash) damage(world, u, p.damage * 0.45 * (1 - d / p.splash / 2), p.owner, events);
       }
     }
     events.push({ t: 'boom', x: p.x, y: Math.max(0, p.y), z: p.z, team: p.team, r: p.splash, volley: p.volley });
@@ -681,26 +739,24 @@ function planFormation(world: MfWorld, army: MfArmy, cmd: MfUnit) {
   const sp = Math.hypot(cmd.vx, cmd.vz);
   if (sp > 1.2) army.heading = turnTowards(army.heading, Math.atan2(cmd.vx, cmd.vz), ARMY.headingTurnRate * MF_DT);
   const followers = world.units.filter((u) => u.alive && u.team === army.team && u.kind !== 'commander' && u.order !== 'defend');
-  const warriors = followers.filter((u) => u.kind === 'warrior');
-  const mages = followers.filter((u) => u.kind !== 'warrior');
-  const slots = followSlots(warriors.length, mages.length);
+  const groups = { warrior: [] as MfUnit[], mage: [] as MfUnit[], beast: [] as MfUnit[] };
+  for (const u of followers) groups[u.kind as MfSoldierKind].push(u);
+  const slots = followSlots(groups.warrior.length, groups.mage.length, groups.beast.length, army.formation);
   const c = Math.cos(army.heading);
   const s = Math.sin(army.heading);
   const toWorld = (p: { x: number; z: number }) => ({ x: cmd.x + p.x * c + p.z * s, z: cmd.z - p.x * s + p.z * c });
-  const ws = slots.warrior.map(toWorld);
-  const ms = slots.mage.map(toWorld);
-  const key = followers.map((u) => u.id).join(',');
+  const world3 = { warrior: slots.warrior.map(toWorld), mage: slots.mage.map(toWorld), beast: slots.beast.map(toWorld) };
+  const key = `${army.formation}:${followers.map((u) => u.id).join(',')}`;
   const turned = Math.abs(ANGLE(army.heading - army.plannedHeading)) > ARMY.reassignTurn;
   if (key !== army.planKey || turned || followers.some((u) => !u.hasSlot)) {
     // Hand out places again: nearest soldier to each place, so nobody crosses the whole group.
     army.planKey = key;
     army.plannedHeading = army.heading;
-    assignSlots(warriors, ws);
-    assignSlots(mages, ms);
+    for (const k of ['warrior', 'mage', 'beast'] as const) assignSlots(groups[k], world3[k]);
   } else {
     // Same places, moved with the commander.
     for (const u of followers) {
-      const p = (u.kind === 'warrior' ? ws : ms)[u.slotIndex];
+      const p = world3[u.kind as MfSoldierKind][u.slotIndex];
       if (p) {
         u.slotX = p.x;
         u.slotZ = p.z;

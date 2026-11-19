@@ -33,6 +33,15 @@ export interface MfRanged {
   keepAway: number;
 }
 
+/** A cone of fire in front of the unit (dragons). */
+export interface MfBreath {
+  damage: number;
+  range: number;
+  /** Half-angle of the cone, radians. */
+  arc: number;
+  cooldown: number;
+}
+
 export interface MfUnitStats {
   hp: number;
   /** Cruising speed. Units following a moving commander may jog faster to keep up (see ARMY). */
@@ -46,6 +55,9 @@ export interface MfUnitStats {
   sight: number;
   /** How much of the 50-unit cap the unit uses. */
   capacity: number;
+  breath: MfBreath | null;
+  /** Flies over trees, rocks and soldiers; only other flyers get in its way. */
+  flying: boolean;
 }
 
 export const UNIT_STATS: Record<MfUnitKind, MfUnitStats> = {
@@ -58,6 +70,8 @@ export const UNIT_STATS: Record<MfUnitKind, MfUnitStats> = {
     ranged: null,
     sight: 14,
     capacity: 0,
+    breath: null,
+    flying: false,
   },
   // Tough and steady: holds the line and shields the mages. Strong against mages up close.
   warrior: {
@@ -69,6 +83,8 @@ export const UNIT_STATS: Record<MfUnitKind, MfUnitStats> = {
     ranged: null,
     sight: 12,
     capacity: 1,
+    breath: null,
+    flying: false,
   },
   // Fragile but deadly from afar. Strong against tight groups of warriors, weak if caught.
   mage: {
@@ -80,19 +96,58 @@ export const UNIT_STATS: Record<MfUnitKind, MfUnitStats> = {
     ranged: { damage: 20, range: 17, cooldown: 2.4, speed: 17, splash: 1.7, keepAway: 7 },
     sight: 18,
     capacity: 1,
+    breath: null,
+    flying: false,
   },
-  // Placeholder numbers for stage 3 (dragons and other creatures). Not spawned yet.
+  // Dragons: big, flying, burn whole groups with their breath. Strong against packed warriors,
+  // weak against mages (who shoot them out of the sky). Each one uses 5 places of the army.
   beast: {
-    hp: 480,
-    speed: 5.6,
-    radius: 1.2,
+    hp: 520,
+    speed: 5.4,
+    radius: 1.1,
     damageTaken: 0.9,
-    melee: { damage: 30, range: 1.2, cooldown: 1.4, windup: 0.4 },
-    ranged: { damage: 34, range: 14, cooldown: 4, speed: 14, splash: 3.5, keepAway: 0 },
-    sight: 16,
+    melee: null,
+    ranged: { damage: 32, range: 15, cooldown: 3.6, speed: 15, splash: 3.2, keepAway: 0 },
+    sight: 17,
     capacity: 5,
+    breath: { damage: 20, range: 6.5, arc: 0.45, cooldown: 3 },
+    flying: true,
   },
 };
+
+/**
+ * Rock, paper, scissors between kinds: damage multiplier by attacker and target.
+ * Warriors cut down mages up close, mages shoot dragons out of the sky, dragons burn warriors.
+ */
+export const DAMAGE_VS: Record<MfUnitKind, Partial<Record<MfUnitKind, number>>> = {
+  commander: {},
+  warrior: { mage: 1.5, beast: 0.75 },
+  mage: { beast: 1.7, warrior: 0.9 },
+  beast: { warrior: 1.5, mage: 0.8 },
+};
+
+/** Flying height of dragons (their body), used by projectiles and the renderer. */
+export const MF_FLY_HEIGHT = 2.8;
+
+export type MfFormation = 'line' | 'wedge' | 'column';
+export const FORMATIONS: MfFormation[] = ['line', 'wedge', 'column'];
+
+export interface MfComposition {
+  warriors: number;
+  mages: number;
+  beasts: number;
+}
+
+/** Starting armies for the skirmish, by size. Each one fills its capacity exactly. */
+export const ARMY_SIZES: Record<'small' | 'medium' | 'large', MfComposition> = {
+  small: { warriors: 5, mages: 3, beasts: 1 },
+  medium: { warriors: 13, mages: 7, beasts: 1 },
+  large: { warriors: 26, mages: 14, beasts: 2 },
+};
+
+export function capacityOf(c: MfComposition): number {
+  return c.warriors * UNIT_STATS.warrior.capacity + c.mages * UNIT_STATS.mage.capacity + c.beasts * UNIT_STATS.beast.capacity;
+}
 
 export const ARMY = {
   /** Never more than this many soldiers (counted by capacity) in one army. */
@@ -142,6 +197,9 @@ export const FORMATION = {
   /** Defend: the warrior line is this far in front of the anchor. */
   defendFront: 2.2,
   defendSpacing: 1.25,
+  /** Dragons fly on the flanks, a little behind the commander. */
+  beastSide: 6.5,
+  beastBack: 1.5,
 } as const;
 
 /** Gravity used by magic projectiles (they fly in an arc). */

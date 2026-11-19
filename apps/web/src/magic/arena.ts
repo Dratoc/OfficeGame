@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ARMY, UNIT_STATS, commanderOf, magicMap, type MfEvent, type MfOrder, type MfUnit, type MfWorld } from '@inbox/shared';
+import { ARMY, MF_FLY_HEIGHT, UNIT_STATS, commanderOf, magicMap, type MfEvent, type MfOrder, type MfUnit, type MfWorld } from '@inbox/shared';
 import { sfx } from '../office/sfx';
 import { buildUnit, RING_GEO, TEAM_LOOKS, type UnitRig } from './models';
 import { buildScenery, type Scenery } from './scenery';
@@ -40,6 +40,8 @@ interface Wave {
   max: number;
   size: number;
 }
+
+const FORMATION_LABEL = { line: 'Línea', wedge: 'Cuña', column: 'Columna' } as const;
 
 const ORDER_COLORS: Record<MfOrder, string> = { follow: '#8fd8ff', attack: '#ff8a3d', defend: '#ffd84a' };
 const CAM = { dist: 15.5, height: 11, look: 3.5 };
@@ -178,6 +180,11 @@ export class MagicArena {
     const ring = new THREE.Mesh(RING_GEO, this.ringMat(u.team, 'follow', true));
     ring.position.y = 0.04;
     if (u.kind === 'commander') ring.scale.setScalar(1.6 / 1.28);
+    if (u.kind === 'beast') {
+      // The dragon flies; its ring stays on the ground below it.
+      ring.scale.setScalar(2.4);
+      ring.position.y = -MF_FLY_HEIGHT + 0.05;
+    }
     rig.root.add(ring);
     const barBg = new THREE.Sprite(this.barMats.bg);
     barBg.scale.set(0.9, 0.11, 1);
@@ -254,6 +261,23 @@ export class MagicArena {
             this.hud.toast('¡Descarga mágica!');
           } else this.hud.toast('¡Los magos enemigos lanzan una descarga!');
           break;
+        case 'breath': {
+          const u = world.units[e.id - 1];
+          if (!u) break;
+          const v = this.units.get(e.id);
+          if (v) v.hurt = 0;
+          this.fireBreath(u.x, u.z, u.facing, UNIT_STATS.beast.breath!.range, UNIT_STATS.beast.breath!.arc);
+          if (near(e.id, 30)) throttled('breath', 150, () => sfx.meeting());
+          break;
+        }
+        case 'formation':
+          if (e.team === this.myTeam) {
+            sfx.beep();
+            this.hud.toast(`Formación: ${FORMATION_LABEL[e.formation]}`);
+          }
+          break;
+        case 'spawn':
+          break;
         case 'select':
           if (e.team === this.myTeam) sfx.beep();
           break;
@@ -271,6 +295,21 @@ export class MagicArena {
       const a = Math.random() * Math.PI * 2;
       const up = Math.random();
       this.particles.push({ obj: s, vx: Math.cos(a) * speed * (0.4 + Math.random()), vy: speed * (0.4 + up), vz: Math.sin(a) * speed * (0.4 + Math.random()), life: 0.5, max: 0.5, gravity: 14, grow: -0.6, base: 0.35 });
+      this.scene.add(s);
+    }
+  }
+
+  /** A cone of fire from a dragon's mouth. */
+  private fireBreath(x: number, z: number, facing: number, range: number, arc: number) {
+    if (this.particles.length > 480) return;
+    const fx = Math.sin(facing);
+    const fz = Math.cos(facing);
+    for (let i = 0; i < 26; i++) {
+      const a = facing + (Math.random() * 2 - 1) * arc;
+      const sp = range * (1.6 + Math.random() * 1.2);
+      const s = new THREE.Sprite(glowMat(i % 3 === 0 ? '#ffe36b' : '#ff7a2a'));
+      s.position.set(x + fx * 1.6, MF_FLY_HEIGHT + 0.4, z + fz * 1.6);
+      this.particles.push({ obj: s, vx: Math.sin(a) * sp, vy: -MF_FLY_HEIGHT * 2.2 + Math.random() * 2, vz: Math.cos(a) * sp, life: 0.45, max: 0.45, gravity: 0, grow: 1.6, base: 0.5 });
       this.scene.add(s);
     }
   }
@@ -390,8 +429,17 @@ export class MagicArena {
       rig.body.rotation.x = -f * (Math.PI / 2) * 0.95;
       rig.body.position.y = f * 0.25;
       rig.root.position.y = v.dead > 4 ? -(v.dead - 4) * 0.5 : 0;
+      if (u.kind === 'beast') {
+        rig.root.position.y += Math.max(0.4, MF_FLY_HEIGHT * (1 - v.dead / 0.7));
+        rig.body.rotation.x = 0;
+        rig.body.rotation.z = f * 1.3;
+      }
       rig.root.visible = v.dead < 6.5;
       v.barBg.visible = v.barFill.visible = false;
+      return;
+    }
+    if (u.kind === 'beast') {
+      this.animateDragon(u, v, dt);
       return;
     }
     const sp = Math.hypot(u.vx, u.vz);
@@ -455,12 +503,44 @@ export class MagicArena {
     }
   }
 
+  private animateDragon(u: MfUnit, v: UnitVis, dt: number) {
+    const { rig } = v;
+    const sp = Math.hypot(u.vx, u.vz);
+    v.walk += dt * (5 + sp * 0.8);
+    const flap = Math.sin(v.walk);
+    rig.root.position.y = MF_FLY_HEIGHT + flap * 0.18;
+    rig.armL.rotation.z = -flap * 0.7;
+    rig.armR.rotation.z = flap * 0.7;
+    rig.legL.rotation.y = Math.sin(v.walk * 0.5) * 0.35;
+    rig.legR.rotation.y = Math.sin(v.walk * 0.5 + 1) * 0.45;
+    rig.body.rotation.x = -Math.min(1, sp / 6) * 0.15;
+    const breathing = u.act === 'cast' && u.actT < 0.6;
+    rig.head.rotation.x = breathing ? 0.35 : Math.sin(v.walk * 0.5) * 0.06;
+    if (rig.orb) rig.orb.scale.setScalar(breathing ? 2.2 - u.actT * 2 : 1);
+    if (v.hurt > 0) {
+      v.hurt = Math.max(0, v.hurt - dt);
+      rig.body.rotation.x -= v.hurt;
+    }
+    const hurtBar = u.hp < u.maxHp;
+    v.barBg.visible = v.barFill.visible = hurtBar;
+    if (hurtBar) {
+      const h = MF_FLY_HEIGHT + 1.5;
+      const w = 1.8;
+      const p = rig.root.position;
+      v.barBg.scale.set(w, 0.14, 1);
+      v.barBg.position.set(p.x, h, p.z);
+      v.barFill.scale.set((w - 0.06) * (u.hp / u.maxHp), 0.09, 1);
+      const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0);
+      v.barFill.position.set(p.x - (right.x * (w - 0.06)) / 2, h, p.z - (right.z * (w - 0.06)) / 2);
+    }
+  }
+
   private drawBolts(world: MfWorld, dt: number) {
     const seen = new Set<number>();
     for (const b of world.projectiles) {
       seen.add(b.id);
       let g = this.bolts.get(b.id);
-      const color = TEAM_LOOKS[b.team]!.magic;
+      const color = world.units[b.owner - 1]?.kind === 'beast' ? '#ff7a2a' : TEAM_LOOKS[b.team]!.magic;
       if (!g) {
         g = new THREE.Group();
         const core = new THREE.Mesh(new THREE.IcosahedronGeometry(b.volley ? 0.26 : 0.18, 1), new THREE.MeshBasicMaterial({ color }));
