@@ -1,4 +1,4 @@
-import { ARMY, armyCount, type MfOrder, type MfSelection, type MfUnit, type MfWorld } from '@inbox/shared';
+import { ARMY, UNIT_STATS, armyCount, type MfFormation, type MfOrder, type MfSelection, type MfUnit, type MfWorld } from '@inbox/shared';
 
 /**
  * On-screen panels: your army (living units per kind, the order each group follows and which group
@@ -7,7 +7,8 @@ import { ARMY, armyCount, type MfOrder, type MfSelection, type MfUnit, type MfWo
  */
 
 const ORDER_LABEL: Record<MfOrder, string> = { follow: 'Seguimiento', attack: 'Ataque', defend: 'Defensa' };
-const GROUP_LABEL: Record<MfSelection, string> = { all: 'Todo el ejército', warrior: 'Guerreros', mage: 'Magos', beast: 'Bestias' };
+const GROUP_LABEL: Record<MfSelection, string> = { all: 'Todo el ejército', warrior: 'Guerreros', mage: 'Magos', beast: 'Dragones' };
+const FORMATION_LABEL: Record<MfFormation, string> = { line: 'Línea', wedge: 'Cuña', column: 'Columna' };
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: HTMLElement, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -60,7 +61,7 @@ export class MagicHud {
     this.rows = {
       warrior: row('warrior', '1', '⚔', 'Guerreros'),
       mage: row('mage', '2', '✦', 'Magos'),
-      beast: row('beast', '3', '🐉', 'Bestias'),
+      beast: row('beast', '3', '🐉', 'Dragones'),
     };
     this.selLabel = el('div', 'mf-sel', army);
 
@@ -87,6 +88,7 @@ export class MagicHud {
     key('F', 'Seguir', 'mf-k-follow');
     this.volleyKey = key('E', 'Descarga mágica', 'mf-k-volley');
     this.volleyFill = el('div', 'mf-cool', this.volleyKey);
+    key('R', 'Formación');
     key('Clic izq.', 'Golpe');
 
     this.bannerEl = el('div', 'mf-banner', this.root);
@@ -131,28 +133,29 @@ export class MagicHud {
     const army = world.armies[team]!;
     const enemyCmd = world.units.find((u) => u.team !== team && u.kind === 'commander')!;
     const orders = (['warrior', 'mage', 'beast'] as const).map((k) => orderOf(mine.filter((u) => u.kind === k)));
-    const key = JSON.stringify([c, e.warrior + e.mage + e.beast, Math.round(enemyCmd.hp), army.selection, orders, Math.ceil(army.volleyCd * 4)]);
+    const key = JSON.stringify([c, e.warrior + e.mage + e.beast, Math.round(enemyCmd.hp), army.selection, orders, Math.ceil(army.volleyCd * 4), army.formation]);
     if (key === this.last) return;
     this.last = key;
 
     const alive = c.warrior + c.mage + c.beast;
     const max = c.warriorMax + c.mageMax + c.beastMax;
-    this.total.innerHTML = `<b>${alive}</b> / ${max} unidades vivas <span class="mf-cap">· máx. ${ARMY.maxCapacity}</span>`;
+    const cap = c.warrior * UNIT_STATS.warrior.capacity + c.mage * UNIT_STATS.mage.capacity + c.beast * UNIT_STATS.beast.capacity;
+    this.total.innerHTML = `<b>${alive}</b> / ${max} unidades vivas <span class="mf-cap">· ocupan ${cap} de ${ARMY.maxCapacity}</span>`;
     (['warrior', 'mage', 'beast'] as const).forEach((k, i) => {
       const r = this.rows[k];
       const n = c[k];
       const m = c[`${k}Max`];
       r.count.textContent = m ? `${n}/${m}` : '—';
       const o = orders[i];
-      r.order.textContent = k === 'beast' ? 'Etapa 3' : o === null ? 'Caídos' : o === 'mixed' ? 'Mixto' : ORDER_LABEL[o];
+      r.order.textContent = o === null ? (m ? 'Caídos' : '—') : o === 'mixed' ? 'Mixto' : ORDER_LABEL[o];
       r.order.className = `mf-order ${o && o !== 'mixed' ? `mf-o-${o}` : ''}`;
       r.row.classList.toggle('selected', army.selection === k || army.selection === 'all');
       r.row.classList.toggle('empty', !n);
     });
-    this.selLabel.textContent = `Órdenes para: ${GROUP_LABEL[army.selection]}`;
+    this.selLabel.textContent = `Órdenes para: ${GROUP_LABEL[army.selection]} · Formación: ${FORMATION_LABEL[army.formation]} (R)`;
 
     const ealive = e.warrior + e.mage + e.beast;
-    this.enemyCount.innerHTML = `<b>${ealive}</b> / ${e.warriorMax + e.mageMax} soldados`;
+    this.enemyCount.innerHTML = `<b>${ealive}</b> / ${e.warriorMax + e.mageMax + e.beastMax} soldados`;
     this.enemyHp.style.width = `${(Math.max(0, enemyCmd.hp) / enemyCmd.maxHp) * 100}%`;
 
     this.hpFill.style.width = `${(c.commanderHp / c.commanderMax) * 100}%`;

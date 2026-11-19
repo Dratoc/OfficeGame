@@ -1,19 +1,20 @@
 import { useEffect, useRef } from 'react';
-import type { MfWorld } from '@inbox/shared';
+import type { ARMY_SIZES, MfWorld } from '@inbox/shared';
 import { MagicPractice } from '../magic/practice';
 
 interface Props {
   skill: number;
+  size: keyof typeof ARMY_SIZES;
   onEnd: (world: MfWorld) => void;
 }
 
 /** Magic Frontiers: your commander and army against an AI army, without the server. */
-export default function MagicPracticeStage({ skill, onEnd }: Props) {
+export default function MagicPracticeStage({ skill, size, onEnd }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const end = useRef(onEnd);
   end.current = onEnd;
   useEffect(() => {
-    const g = new MagicPractice(ref.current!, { skill, onEnd: (w) => end.current(w) });
+    const g = new MagicPractice(ref.current!, { skill, size, onEnd: (w) => end.current(w) });
     return () => g.dispose();
     // A new battle is started by remounting with a new key.
     // eslint-disable-next-line react-hooks/exhaustive-deps

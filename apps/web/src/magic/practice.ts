@@ -1,4 +1,4 @@
-import { MF_DT, MF_TICK_MS, MagicCommanderBot, commanderOf, createMagicBattle, magicMap, stepMagicWorld, type MfEvent, type MfInput, type MfWorld } from '@inbox/shared';
+import { ARMY, ARMY_SIZES, MF_DT, MF_TICK_MS, capacityOf, type MfComposition, MagicCommanderBot, commanderOf, createMagicBattle, magicMap, stepMagicWorld, type MfEvent, type MfInput, type MfWorld } from '@inbox/shared';
 import { sfx } from '../office/sfx';
 import { MagicArena } from './arena';
 import { MagicControls } from './input';
@@ -6,12 +6,18 @@ import { MagicControls } from './input';
 export interface MagicPracticeOptions {
   /** 0..1: enemy army size and how sharp the AI commander is. */
   skill: number;
+  /** Size of both armies. */
+  size?: keyof typeof ARMY_SIZES;
   onEnd?: (world: MfWorld) => void;
 }
 
-/** Enemy army by difficulty. */
-export function enemyArmy(skill: number) {
-  return skill < 0.4 ? { warriors: 5, mages: 3 } : skill < 0.7 ? { warriors: 6, mages: 4 } : { warriors: 8, mages: 5 };
+/** Enemy army by difficulty: smaller when easy, a bit bigger when hard (never over the cap). */
+export function enemyArmy(size: keyof typeof ARMY_SIZES, skill: number): MfComposition {
+  const base = ARMY_SIZES[size];
+  const f = skill < 0.4 ? 0.75 : skill < 0.7 ? 1 : 1.2;
+  const c = { warriors: Math.max(2, Math.round(base.warriors * f)), mages: Math.max(1, Math.round(base.mages * f)), beasts: base.beasts };
+  while (capacityOf(c) > ARMY.maxCapacity) c.warriors--;
+  return c;
 }
 
 /**
@@ -33,7 +39,8 @@ export class MagicPractice {
   autopilot: ((world: MfWorld) => Partial<MfInput> | null) | null = null;
 
   constructor(container: HTMLElement, private opts: MagicPracticeOptions) {
-    this.world = createMagicBattle(Math.floor(Math.random() * 2 ** 31), enemyArmy(opts.skill));
+    const size = opts.size ?? 'small';
+    this.world = createMagicBattle(Math.floor(Math.random() * 2 ** 31), enemyArmy(size, opts.skill), ARMY_SIZES[size]);
     this.bot = new MagicCommanderBot(1, opts.skill, Math.floor(Math.random() * 1e6));
     this.arena = new MagicArena(container);
     this.controls = new MagicControls(container, magicMap().playerSpawn.facing);
